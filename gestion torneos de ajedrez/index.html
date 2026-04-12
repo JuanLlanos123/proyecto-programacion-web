@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Grandmaster Heritage - Gestión de Torneos de Ajedrez</title>
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Playfair+Display:wght@700&family=Noto+Serif:wght@700&display=swap" rel="stylesheet">
+    <!-- FontAwesome for icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <div class="brand">
+                <i class="fa-solid fa-chess-knight logo-icon"></i>
+                <h1>Digital Curator</h1>
+            </div>
+            <nav class="nav-menu">
+                <div class="nav-section-title">ADMINISTRACIÓN</div>
+                <button class="nav-btn active" data-target="dashboard-view">
+                    <i class="fa-solid fa-chart-line"></i> Dashboard Admin
+                </button>
+                <button class="nav-btn" data-target="tournaments-view">
+                    <i class="fa-solid fa-trophy"></i> Mis Torneos
+                </button>
+                
+                <div class="nav-section-title" style="margin-top: 2rem;">VISTA PÚBLICA</div>
+                <button class="nav-btn" data-target="player-view">
+                    <i class="fa-solid fa-user-astronaut"></i> Portal Jugador
+                </button>
+            </nav>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            
+            <!-- A. ADMIN DASHBOARD VIEW -->
+            <section id="dashboard-view" class="view active">
+                <header class="view-header">
+                    <h2>Panel de Control Avanzado</h2>
+                    <button class="btn btn-primary btn-large" onclick="openModal('create-tournament-modal')">
+                        <i class="fa-solid fa-plus-circle"></i> Crear Nuevo Campeonato
+                    </button>
+                </header>
+                
+                <!-- Advanced Stats Cards -->
+                <div class="stats-grid">
+                    <div class="stat-card stat-accent">
+                        <i class="fa-solid fa-tower-observation text-accent"></i>
+                        <div class="stat-info">
+                            <span class="stat-value" id="stat-active-tournaments">0</span>
+                            <span class="stat-label">Torneos Activos</span>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <i class="fa-solid fa-users text-primary"></i>
+                        <div class="stat-info">
+                            <span class="stat-value" id="stat-total-players">0</span>
+                            <span class="stat-label">Total Jugadores Inscritos</span>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <i class="fa-regular fa-chess-knight text-win"></i>
+                        <div class="stat-info">
+                            <span class="stat-value" id="stat-active-matches">0</span>
+                            <span class="stat-label">Partidas en Curso</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="mt-4">
+                    <h3>Próximos Torneos</h3>
+                    <div id="recent-tournaments-list" class="mt-2" style="display:grid; gap: 1rem;">
+                        <!-- Populated via JS -->
+                    </div>
+                </div>
+            </section>
+
+            <!-- TOURNAMENTS LIST VIEW (Keeping for navigation) -->
+            <section id="tournaments-view" class="view">
+                <header class="view-header">
+                    <h2>Mis Torneos</h2>
+                    <button class="btn btn-primary" onclick="openModal('create-tournament-modal')">
+                        <i class="fa-solid fa-plus"></i> Nuevo Campeonato
+                    </button>
+                </header>
+                <div id="all-tournaments-list">
+                    <!-- Populated via JS -->
+                </div>
+            </section>
+
+            <!-- TOURNAMENT DETAIL VIEW -->
+            <section id="tournament-detail-view" class="view">
+                <header class="view-header">
+                    <div>
+                        <button class="btn btn-secondary mb-2" onclick="showView('tournaments-view')" style="border:none; padding:0;">
+                            <i class="fa-solid fa-arrow-left"></i> Volver a lista
+                        </button>
+                        <h2 id="detail-t-name">Nombre del Torneo</h2>
+                        <span class="status-badge status-pending" id="detail-t-status">Pendiente</span>
+                    </div>
+                    <div id="detail-t-actions">
+                         <!-- Start/Complete buttons handled via JS -->
+                    </div>
+                </header>
+
+                <div class="card mt-4">
+                    <div class="tabs">
+                        <button class="tab-btn active" data-tab="tab-players">Jugadores</button>
+                        <button class="tab-btn" data-tab="tab-rounds">Emparejamientos</button>
+                        <button class="tab-btn" data-tab="tab-standings">Tabla de Posiciones</button>
+                    </div>
+
+                    <!-- Players Tab -->
+                    <div id="tab-players" class="tab-content active">
+                        <div class="d-flex" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
+                            <h3>Lista de Participantes</h3>
+                            <button id="btn-add-player" class="btn btn-primary" onclick="openModal('add-player-modal')">
+                                <i class="fa-solid fa-user-plus"></i> Añadir Jugador
+                            </button>
+                        </div>
+                        <table class="data-table" id="players-table">
+                            <thead>
+                                <tr>
+                                    <th>Nombre del Jugador</th>
+                                    <th>ELO</th>
+                                    <th>Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <!-- Populated via JS -->
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- C. THE PAIRINGS TAB -->
+                    <div id="tab-rounds" class="tab-content">
+                        <div class="d-flex" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1.5rem;">
+                            <h3 id="current-round-title">Rondas y Emparejamientos</h3>
+                            <button class="btn btn-primary btn-large hidden" id="btn-generate-rounds" onclick="startTournament(currentTournamentId)">
+                                <i class="fa-solid fa-bolt"></i> Generar Rondas Automáticamente
+                            </button>
+                        </div>
+                        <div id="rounds-container" class="pairing-container">
+                             <!-- Rounds populated via JS. Tabular format -->
+                        </div>
+                    </div>
+
+                    <!-- Standings Tab -->
+                    <div id="tab-standings" class="tab-content">
+                        <h3>Clasificación Actual</h3>
+                        <table class="data-table" id="standings-table">
+                            <thead>
+                                <tr>
+                                    <th>Posición</th>
+                                    <th>Jugador</th>
+                                    <th>Puntos</th>
+                                    <th>Partidas Jugadas</th>
+                                    <th>Victorias</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <!-- Populated via JS -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <!-- B. PLAYER PORTAL VIEW -->
+            <section id="player-view" class="view">
+                <header class="view-header" style="border-bottom: none; margin-bottom:0;">
+                    <h2>Hola, <span class="text-primary">Magnus Carlsen</span></h2>
+                    <span class="status-badge status-active">Torneo de Invierno Activo</span>
+                </header>
+
+                <div class="player-portal-grid mt-4">
+                    <!-- Column 1: Next Match & History -->
+                    <div class="player-main-column">
+                        <h3 class="mb-2">Mi Próxima Partida</h3>
+                        
+                        <div class="next-match-card">
+                            <div class="match-time-banner">
+                                <i class="fa-regular fa-clock"></i> Ronda 3 • Hoy, 15:00 hrs
+                            </div>
+                            <div class="match-players-vs">
+                                <div class="player-side p-white">
+                                    <div class="piece-icon"><i class="fa-regular fa-chess-pawn"></i></div>
+                                    <h4>Tú (Blancas)</h4>
+                                    <span class="elo-tag">2830 ELO</span>
+                                </div>
+                                <div class="vs-text">VS</div>
+                                <div class="player-side p-black">
+                                    <div class="piece-icon"><i class="fa-solid fa-chess-pawn"></i></div>
+                                    <h4>Ding Liren</h4>
+                                    <span class="elo-tag">2780 ELO</span>
+                                </div>
+                            </div>
+                            <div class="match-table-info">
+                                <i class="fa-solid fa-chess-board"></i> Juegas en <strong>Mesa 1</strong>
+                            </div>
+                        </div>
+
+                        <h3 class="mt-4 mb-2">Mis Partidas Anteriores</h3>
+                        <div class="history-list">
+                            <div class="history-item win">
+                                <span class="r-tag">R2</span>
+                                <span>vs Fabiano Caruana <span class="color-indicator black-pieces"></span></span>
+                                <span class="result-badge win-badge">1 - 0</span>
+                            </div>
+                            <div class="history-item draw">
+                                <span class="r-tag">R1</span>
+                                <span>vs Ian Nepomniachtchi <span class="color-indicator white-pieces"></span></span>
+                                <span class="result-badge draw-badge">½ - ½</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Column 2: Standings Mini -->
+                    <div class="player-side-column">
+                        <h3 class="mb-2">Mi Posición Actual</h3>
+                        <div class="card mini-standings">
+                            <table class="data-table">
+                                <tbody>
+                                    <tr>
+                                        <td>1</td>
+                                        <td>Magnus Carlsen</td>
+                                        <td><strong>1.5</strong></td>
+                                    </tr>
+                                    <tr style="opacity:0.6">
+                                        <td>2</td>
+                                        <td>H. Nakamura</td>
+                                        <td><strong>1.5</strong></td>
+                                    </tr>
+                                    <tr style="opacity:0.6">
+                                        <td>3</td>
+                                        <td>Alireza F.</td>
+                                        <td><strong>1.0</strong></td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                            <button class="btn btn-secondary mt-2" style="width:100%; justify-content:center;">Ver Tabla Completa</button>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Modals -->
+    <div class="modal-overlay" id="create-tournament-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Crear Nuevo Campeonato</h2>
+                <button class="close-btn" onclick="closeModal('create-tournament-modal')">&times;</button>
+            </div>
+            <form id="form-create-tournament">
+                <div class="form-group">
+                    <label>Nombre del Torneo</label>
+                    <input type="text" class="form-control" id="form-t-name" required placeholder="Ej: Open de Primavera">
+                </div>
+                <button type="submit" class="btn btn-primary btn-large" style="width: 100%; justify-content: center;">Confirmar Creación</button>
+            </form>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="add-player-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Añadir Jugador</h2>
+                <button class="close-btn" onclick="closeModal('add-player-modal')">&times;</button>
+            </div>
+            <form id="form-add-player">
+                <div class="form-group">
+                    <label>Nombre Completo</label>
+                    <input type="text" class="form-control" id="form-p-name" required placeholder="Ej: Hikaru Nakamura">
+                </div>
+                <div class="form-group">
+                    <label>ELO FIDE</label>
+                    <input type="number" class="form-control" id="form-p-elo" placeholder="Ej: 2789">
+                </div>
+                <button type="submit" class="btn btn-primary" style="width: 100%; justify-content: center;">Añadir al Torneo</button>
+            </form>
+        </div>
+    </div>
+
+    <script src="js/api.js"></script>
+    <script src="js/app.js"></script>
+</body>
+</html>

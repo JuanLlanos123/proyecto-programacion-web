@@ -1,0 +1,37 @@
+package com.ajedrez.controllers;
+
+import com.ajedrez.models.Partida;
+import com.ajedrez.repositories.PartidaRepository;
+import com.ajedrez.services.EmparejamientoService;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.Map;
+
+@RestController
+@RequestMapping("/api/partidas")
+@CrossOrigin(origins = "*")
+public class PartidaController {
+
+    @Autowired
+    private PartidaRepository partidaRepository;
+
+    @Autowired
+    private EmparejamientoService emparejamientoService;
+
+    @PutMapping("/{id}/resultado")
+    public ResponseEntity<?> actualizarResultado(@PathVariable Long id, @RequestBody Map<String, String> body) {
+        Partida partida = partidaRepository.findById(id).orElse(null);
+        if(partida == null) return ResponseEntity.notFound().build();
+
+        String resultado = body.get("resultado");
+        partida.setResultado(resultado);
+        partidaRepository.save(partida);
+
+        // Recalcular puntos del torneo
+        emparejamientoService.actualizarPuntos(partida.getTorneo().getId());
+        
+        return ResponseEntity.ok(partida);
+    }
+}
