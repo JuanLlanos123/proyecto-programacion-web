@@ -8,6 +8,7 @@ com\ajedrez\models\Usuario.class
 com\ajedrez\controllers\AuthController.class
 com\ajedrez\AjedrezApplication.class
 com\ajedrez\repositories\UsuarioRepository.class
+com\ajedrez\controllers\UsuarioController.class
 com\ajedrez\repositories\InscripcionRepository.class
 com\ajedrez\services\EmparejamientoService.class
 com\ajedrez\repositories\TorneoRepository.class

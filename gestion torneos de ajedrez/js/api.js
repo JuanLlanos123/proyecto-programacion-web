@@ -56,6 +56,26 @@ const API = {
         }
     },
     
+    async deleteTorneo(torneoId) {
+        try {
+            await fetch(`${API_BASE}/torneos/${torneoId}`, { method: 'DELETE' });
+            return true;
+        } catch (error) {
+            console.error("Error al borrar torneo:", error);
+            return false;
+        }
+    },
+
+    async deleteInscripcion(torneoId, insId) {
+        try {
+            await fetch(`${API_BASE}/torneos/${torneoId}/inscripciones/${insId}`, { method: 'DELETE' });
+            return true;
+        } catch (error) {
+            console.error("Error al borrar inscripcion:", error);
+            return false;
+        }
+    },
+
     // Auth
     async login(username, password) {
         try {
@@ -68,6 +88,21 @@ const API = {
             return null;
         } catch (error) {
             console.error("Login failed:", error);
+            return null;
+        }
+    },
+    
+    async register(username, password, email, role) {
+        try {
+            const response = await fetch(`${API_BASE}/auth/register`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username, passwordHash: password, email, role: role || 'PLAYER' })
+            });
+            if(response.ok) return await response.json();
+            return null;
+        } catch (error) {
+            console.error("Register failed:", error);
             return null;
         }
     }

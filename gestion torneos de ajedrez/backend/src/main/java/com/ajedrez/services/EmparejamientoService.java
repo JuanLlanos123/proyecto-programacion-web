@@ -94,23 +94,46 @@ public class EmparejamientoService {
         for (Inscripcion ins : inscripciones) {
             double puntos = 0;
             int jugadas = 0;
+            int wins = 0;
+            int draws = 0;
+            int losses = 0;
             Long userId = ins.getUsuario().getId();
 
             for (Partida p : partidas) {
-                if (p.getResultado() == null || p.getResultado().equals("P") || p.getResultado().equals("BYE")) continue;
+                if (p.getResultado() == null || p.getResultado().equals("P")) continue;
 
-                if (p.getBlancas() != null && p.getBlancas().getId().equals(userId)) {
+                boolean isWhite = p.getBlancas() != null && p.getBlancas().getId().equals(userId);
+                boolean isBlack = p.getNegras() != null && p.getNegras().getId().equals(userId);
+
+                if (isWhite) {
                     jugadas++;
-                    if (p.getResultado().equals("1-0")) puntos += 1;
-                    else if (p.getResultado().equals("0.5-0.5")) puntos += 0.5;
-                } else if (p.getNegras() != null && p.getNegras().getId().equals(userId)) {
+                    if (p.getResultado().equals("1-0") || p.getResultado().equals("BYE")) {
+                        puntos += 1;
+                        wins++;
+                    } else if (p.getResultado().equals("0.5-0.5")) {
+                        puntos += 0.5;
+                        draws++;
+                    } else if (p.getResultado().equals("0-1")) {
+                        losses++;
+                    }
+                } else if (isBlack) {
                     jugadas++;
-                    if (p.getResultado().equals("0-1")) puntos += 1;
-                    else if (p.getResultado().equals("0.5-0.5")) puntos += 0.5;
+                    if (p.getResultado().equals("0-1")) {
+                        puntos += 1;
+                        wins++;
+                    } else if (p.getResultado().equals("0.5-0.5")) {
+                        puntos += 0.5;
+                        draws++;
+                    } else if (p.getResultado().equals("1-0")) {
+                        losses++;
+                    }
                 }
             }
             ins.setPuntosAcumulados(puntos);
             ins.setPartidasJugadas(jugadas);
+            ins.setVictorias(wins);
+            ins.setEmpates(draws);
+            ins.setDerrotas(losses);
             inscripcionRepository.save(ins);
         }
     }

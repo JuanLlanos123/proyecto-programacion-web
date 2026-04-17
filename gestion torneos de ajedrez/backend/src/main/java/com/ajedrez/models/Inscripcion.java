@@ -26,6 +26,15 @@ public class Inscripcion {
     @Column(name = "partidas_jugadas")
     private Integer partidasJugadas = 0;
 
+    @Column(name = "victorias", nullable = false)
+    private Integer victorias = 0;
+
+    @Column(name = "empates", nullable = false)
+    private Integer empates = 0;
+
+    @Column(name = "derrotas", nullable = false)
+    private Integer derrotas = 0;
+
     // Getters / Setters
     public Inscripcion() {}
 
@@ -39,4 +48,10 @@ public class Inscripcion {
     public void setPuntosAcumulados(Double puntosAcumulados) { this.puntosAcumulados = puntosAcumulados; }
     public Integer getPartidasJugadas() { return partidasJugadas; }
     public void setPartidasJugadas(Integer partidasJugadas) { this.partidasJugadas = partidasJugadas; }
+    public Integer getVictorias() { return victorias; }
+    public void setVictorias(Integer victorias) { this.victorias = victorias; }
+    public Integer getEmpates() { return empates; }
+    public void setEmpates(Integer empates) { this.empates = empates; }
+    public Integer getDerrotas() { return derrotas; }
+    public void setDerrotas(Integer derrotas) { this.derrotas = derrotas; }
 }

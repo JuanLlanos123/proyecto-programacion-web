@@ -30,6 +30,9 @@ public class Usuario {
     @Temporal(TemporalType.TIMESTAMP)
     private Date fechaRegistro = new Date();
 
+    @Column(length = 20)
+    private String role = "PLAYER"; // ADMIN o PLAYER
+
     // Constructor, Getters y Setters
     public Usuario() {}
 
@@ -47,4 +50,6 @@ public class Usuario {
     public void setBiografia(String biografia) { this.biografia = biografia; }
     public Date getFechaRegistro() { return fechaRegistro; }
     public void setFechaRegistro(Date fechaRegistro) { this.fechaRegistro = fechaRegistro; }
+    public String getRole() { return role; }
+    public void setRole(String role) { this.role = role; }
 }

@@ -98,4 +98,44 @@ public class TorneoController {
         
         return ResponseEntity.ok(inscripcionRepository.save(inscripcion));
     }
+
+    @DeleteMapping("/{id}")
+    @org.springframework.transaction.annotation.Transactional
+    public ResponseEntity<?> eliminarTorneo(@PathVariable Long id) {
+        if (!torneoRepository.existsById(id)) return ResponseEntity.notFound().build();
+        List<Partida> partidas = partidaRepository.findByTorneoId(id);
+        partidaRepository.deleteAll(partidas);
+        List<Inscripcion> inscripciones = inscripcionRepository.findByTorneoId(id);
+        inscripcionRepository.deleteAll(inscripciones);
+        torneoRepository.deleteById(id);
+        return ResponseEntity.noContent().build();
+    }
+
+    @DeleteMapping("/{id}/inscripciones/{insId}")
+    public ResponseEntity<?> eliminarInscripcion(@PathVariable Long id, @PathVariable Long insId) {
+        return inscripcionRepository.findById(insId).map(ins -> {
+            inscripcionRepository.delete(ins);
+            return ResponseEntity.noContent().build();
+        }).orElse(ResponseEntity.notFound().build());
+    }
+
+    @PutMapping("/{id}/finalizar")
+    public ResponseEntity<?> finalizarTorneo(@PathVariable Long id) {
+        return torneoRepository.findById(id).map(torneo -> {
+            torneo.setEstado("FINALIZADO");
+            return ResponseEntity.ok(torneoRepository.save(torneo));
+        }).orElse(ResponseEntity.notFound().build());
+    }
+
+    @PutMapping("/{id}")
+    public ResponseEntity<?> actualizarTorneo(@PathVariable Long id, @RequestBody Map<String, Object> body) {
+        return torneoRepository.findById(id).map(torneo -> {
+            if(body.containsKey("nombre")) torneo.setNombre((String) body.get("nombre"));
+            if(body.containsKey("descripcion")) torneo.setDescripcion((String) body.get("descripcion"));
+            if(body.containsKey("ubicacion")) torneo.setUbicacion((String) body.get("ubicacion"));
+            if(body.containsKey("sistemaJuego")) torneo.setSistemaJuego((String) body.get("sistemaJuego"));
+            
+            return ResponseEntity.ok(torneoRepository.save(torneo));
+        }).orElse(ResponseEntity.notFound().build());
+    }
 }

@@ -6,12 +6,39 @@
 let currentTournamentId = null;
 
 document.addEventListener('DOMContentLoaded', () => {
+    checkAuthStatus();
     initNavigation();
     initModals();
     initForms();
     renderDashboard();
     renderTournamentList();
 });
+
+function checkAuthStatus() {
+    const userStr = localStorage.getItem('currentUser');
+    if (!userStr) {
+        document.getElementById('login-overlay').style.display = 'flex';
+    } else {
+        const user = JSON.parse(userStr);
+        document.getElementById('login-overlay').style.display = 'none';
+        
+        // Update Sidebar Profile
+        document.getElementById('current-username').textContent = user.username;
+        const roleBadge = document.getElementById('user-role-badge');
+        
+        // True Role distinction from Database
+        const isAdmin = user.role === 'ADMIN';
+        if (isAdmin) {
+            roleBadge.textContent = 'ADMINISTRADOR';
+            roleBadge.style.color = '#eab308'; // Gold
+            document.querySelectorAll('.admin-only').forEach(el => el.style.display = 'block');
+        } else {
+            roleBadge.textContent = 'JUGADOR / LEYENDA';
+            roleBadge.style.color = '#94a3b8'; // Silver/Gray
+            document.querySelectorAll('.admin-only').forEach(el => el.style.display = 'none');
+        }
+    }
+}
 
 function initNavigation() {
     document.querySelectorAll('.nav-btn').forEach(btn => {
@@ -50,6 +77,70 @@ function initModals() {
 }
 
 function initForms() {
+    // Auth Form Logic
+    const errorDiv = document.getElementById('login-error');
+    
+    // Toggle Login/Register
+    const toggleLink = document.getElementById('toggle-auth-mode');
+    const formLogin = document.getElementById('form-login');
+    const formRegister = document.getElementById('form-register');
+    
+    if(toggleLink) {
+        toggleLink.addEventListener('click', (e) => {
+            e.preventDefault();
+            errorDiv.style.display = 'none';
+            if(formLogin.style.display === 'none') {
+                formLogin.style.display = 'block';
+                formRegister.style.display = 'none';
+                toggleLink.textContent = '¿No tienes cuenta? Regístrate';
+            } else {
+                formLogin.style.display = 'none';
+                formRegister.style.display = 'block';
+                toggleLink.textContent = '¿Ya tienes cuenta? Inicia sesión';
+            }
+        });
+    }
+
+    if (formLogin) {
+        formLogin.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            errorDiv.style.display = 'none';
+            const user = document.getElementById('login-user').value;
+            const pass = document.getElementById('login-pass').value;
+            const res = await API.login(user, pass);
+            if (res) {
+                localStorage.setItem('currentUser', JSON.stringify(res));
+                document.getElementById('login-overlay').style.display = 'none';
+                renderDashboard();
+            } else {
+                errorDiv.textContent = 'Credenciales inválidas o error de red';
+                errorDiv.style.display = 'block';
+            }
+        });
+    }
+
+    if (formRegister) {
+        formRegister.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            errorDiv.style.display = 'none';
+            const user = document.getElementById('reg-user').value;
+            const email = document.getElementById('reg-email').value;
+            const pass = document.getElementById('reg-pass').value;
+            const role = document.getElementById('reg-role').value;
+            const res = await API.register(user, pass, email, role);
+            if (res) {
+                // Auto login after register
+                localStorage.setItem('currentUser', JSON.stringify(res));
+                document.getElementById('login-overlay').style.display = 'none';
+                renderDashboard();
+                checkAuthStatus();
+            } else {
+                errorDiv.textContent = 'Error al registrar, nombre usuario puede estar en uso';
+                errorDiv.style.display = 'block';
+            }
+        });
+    }
+
     document.getElementById('form-create-tournament').addEventListener('submit', async (e) => {
         e.preventDefault();
         const nombre = document.getElementById('form-t-name').value;
@@ -60,6 +151,8 @@ function initForms() {
             renderDashboard();
             renderTournamentList();
             openTournamentDetail(t.id);
+        } else {
+            alert("Error al crear el torneo. Asegúrate de que el servidor (backend) esté en ejecución en el puerto 8080.");
         }
     });
 
@@ -74,12 +167,44 @@ function initForms() {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ nombre, elo: elo || 1200 })
-        });
+        }).catch(err => alert("Error: no se pudo contectar con el servidor."));
 
         document.getElementById('form-p-name').value = '';
         document.getElementById('form-p-elo').value = '';
         closeModal('add-player-modal');
         renderTournamentDetail(currentTournamentId);
+    });
+
+    document.getElementById('form-edit-tournament').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const id = document.getElementById('edit-t-id').value;
+        const nombre = document.getElementById('edit-t-name').value;
+        const ubicacion = document.getElementById('edit-t-location').value;
+        const descripcion = document.getElementById('edit-t-desc').value;
+        
+        await fetch(`http://localhost:8080/api/torneos/${id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ nombre, ubicacion, descripcion })
+        });
+        
+        closeModal('edit-tournament-modal');
+        renderTournamentDetail(id);
+        renderDashboard();
+        renderTournamentList();
+    });
+
+    document.querySelectorAll('.nav-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const target = btn.getAttribute('data-target');
+            showView(target);
+            document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            
+            if(target === 'dashboard-view') renderDashboard();
+            if(target === 'tournaments-view') renderTournamentList();
+            if(target === 'users-view') renderUsers();
+        });
     });
 }
 
@@ -90,12 +215,26 @@ async function renderDashboard() {
     const activeT = tournaments.filter(t => t.estado === 'EN_CURSO').length;
     document.getElementById('stat-active-tournaments').textContent = activeT;
     
-    // For large stats, we'd need more specific endpoints, but for now we calculate
     let totalP = 0;
-    // Note: To get total players efficiently we'd need a backend count, 
-    // but for the demo we'll just sum what we have or set a placeholder
-    document.getElementById('stat-total-players').textContent = "...";
-    document.getElementById('stat-active-matches').textContent = "...";
+    let activeM = 0;
+
+    for (const t of tournaments) {
+        try {
+            const inscRes = await fetch(`${API_BASE}/torneos/${t.id}/inscripciones`);
+            const insc = await inscRes.json();
+            if(insc) totalP += insc.length;
+
+            if (t.estado === 'EN_CURSO') {
+                const partidas = await API.getPartidas(t.id);
+                if(partidas) activeM += partidas.filter(p => !p.resultado || p.resultado === 'P' || p.resultado === '').length;
+            }
+        } catch (e) {
+            console.error("No se pudieron cargar estadisticas completas para", t.id);
+        }
+    }
+
+    document.getElementById('stat-total-players').textContent = totalP;
+    document.getElementById('stat-active-matches').textContent = activeM;
 
     // Upcoming list
     const recentList = document.getElementById('recent-tournaments-list');
@@ -140,6 +279,23 @@ window.openTournamentDetail = async function(id) {
     renderTournamentDetail(id);
 };
 
+window.deleteTournament = async function(id) {
+    if(confirm('¿Seguro que deseas eliminar todo este torneo y sus datos? Esta acción no se puede deshacer.')) {
+        await API.deleteTorneo(id);
+        showView('tournaments-view');
+        renderTournamentList();
+        renderDashboard();
+    }
+};
+
+window.removeInscripcion = async function(insId) {
+    if(!currentTournamentId) return;
+    if(confirm('¿Seguro que deseas sacar a este jugador del torneo?')) {
+        await API.deleteInscripcion(currentTournamentId, insId);
+        renderTournamentDetail(currentTournamentId);
+    }
+};
+
 async function renderTournamentDetail(id) {
     const t = await API.getTorneo(id);
     if(!t) return;
@@ -154,7 +310,8 @@ async function renderTournamentDetail(id) {
     sBadge.textContent = sLabel;
 
     // Get inscriptions to check player count
-    const inscripciones = await (await fetch(`http://localhost:8080/api/torneos/${id}/inscripciones`)).json();
+    const inscRes = await fetch(`${API_BASE}/torneos/${id}/inscripciones`);
+    const inscripciones = await inscRes.json();
 
     const btnGenRounds = document.getElementById('btn-generate-rounds');
     if(t.estado === 'PENDIENTE' && inscripciones.length >= 2) {
@@ -165,7 +322,24 @@ async function renderTournamentDetail(id) {
 
     const actionsContainer = document.getElementById('detail-t-actions');
     actionsContainer.innerHTML = '';
+    
+    // Add delete button if pending
     if(t.estado === 'PENDIENTE') {
+        const btnDelete = document.createElement('button');
+        btnDelete.className = 'btn btn-danger';
+        btnDelete.style.marginRight = '0.5rem';
+        btnDelete.innerHTML = '<i class="fa-solid fa-trash"></i> Eliminar Torneo';
+        btnDelete.onclick = () => deleteTournament(t.id);
+        actionsContainer.appendChild(btnDelete);
+        
+        const btnEdit = document.createElement('button');
+        btnEdit.className = 'btn btn-secondary';
+        btnEdit.style.background = '#e2d2c1';
+        btnEdit.style.color = '#4a3018';
+        btnEdit.innerHTML = '<i class="fa-solid fa-pen-to-square"></i> Editar';
+        btnEdit.onclick = () => openEditTournamentModal(t);
+        actionsContainer.appendChild(btnEdit);
+
         document.getElementById('btn-add-player').style.display = 'inline-flex';
     } else if (t.estado === 'EN_CURSO') {
         const btnFinish = document.createElement('button');
@@ -175,6 +349,14 @@ async function renderTournamentDetail(id) {
         actionsContainer.appendChild(btnFinish);
         document.getElementById('btn-add-player').style.display = 'none';
     } else {
+        // FINALIZADO
+        const btnDelete = document.createElement('button');
+        btnDelete.className = 'btn btn-danger';
+        btnDelete.style.marginRight = '0.5rem';
+        btnDelete.innerHTML = '<i class="fa-solid fa-trash"></i> Eliminar Histórico';
+        btnDelete.onclick = () => deleteTournament(t.id);
+        actionsContainer.appendChild(btnDelete);
+        
         document.getElementById('btn-add-player').style.display = 'none';
     }
 
@@ -187,14 +369,14 @@ async function renderTournamentDetail(id) {
 function renderPlayers(inscripciones, estado) {
     const tbody = document.querySelector('#players-table tbody');
     tbody.innerHTML = '';
-    if(inscripciones.length === 0) {
+    if(!inscripciones || inscripciones.length === 0) {
         tbody.innerHTML = '<tr><td colspan="3" class="text-center">No hay jugadores</td></tr>'; return;
     }
     inscripciones.forEach(ins => {
         const p = ins.usuario;
         const tr = document.createElement('tr');
         tr.innerHTML = `
-            <td style="font-weight:600; color:var(--primary-color)">${p.username}</td>
+            <td style="font-weight:600; color:var(--primary-color)"><a href="#" onclick="openPlayerStats('${ins.id}', '${p.id}', '${p.username}', '${p.eloRating}', '${ins.puntosAcumulados || 0.0}', ${ins.victorias || 0}, ${ins.empates || 0}, ${ins.derrotas || 0})" style="text-decoration:none; color:inherit;">${p.username}</a></td>
             <td><span class="elo-tag" style="background:var(--accent-light); color:var(--primary-color)">${p.eloRating}</span></td>
             <td>${estado === 'PENDIENTE' ? `<button class="btn btn-danger" onclick="removeInscripcion('${ins.id}')"><i class="fa-solid fa-trash"></i></button>` : '-'}</td>
         `;
@@ -202,10 +384,49 @@ function renderPlayers(inscripciones, estado) {
     });
 }
 
+window.openPlayerStats = function(insId, userId, username, elo, points, wins, draws, losses) {
+    document.getElementById('stats-player-name').innerHTML = `<i class="fa-solid fa-user-astronaut"></i> ${username}`;
+    document.getElementById('stats-player-elo').textContent = elo || 'N/A';
+    document.getElementById('stats-player-points').textContent = points || '0.0';
+    
+    document.getElementById('stats-player-wins').textContent = wins || 0;
+    document.getElementById('stats-player-draws').textContent = draws || 0;
+    document.getElementById('stats-player-losses').textContent = losses || 0;
+    
+    openModal('player-stats-modal');
+}
+
+window.logout = function() {
+    localStorage.removeItem('currentUser');
+    location.reload(); // Refresh to clear all state and show login
+};
+
 window.startTournament = async function(tId) {
     await API.startTorneo(tId);
     renderDashboard();
     renderTournamentDetail(tId);
+};
+
+window.deleteTournament = async function(tId) {
+    if(!confirm('¿Estás seguro de que deseas eliminar este torneo? Esta acción no se puede deshacer.')) return;
+    try {
+        await API.deleteTorneo(tId);
+        showView('dashboard-view');
+        renderDashboard();
+    } catch (e) {
+        alert("Error al eliminar el torneo.");
+    }
+};
+
+window.finishTournament = async function(tId) {
+    if(!confirm('¿Estás seguro de que deseas finalizar este torneo? Los resultados serán definitivos.')) return;
+    try {
+        await fetch(`http://localhost:8080/api/torneos/${tId}/finalizar`, { method: 'PUT' });
+        renderDashboard();
+        renderTournamentDetail(tId);
+    } catch (e) {
+        alert("Error al finalizar el torneo.");
+    }
 };
 
 // Simplified result handling for the new API
@@ -302,10 +523,55 @@ function renderStandings(inscripciones, estado) {
         row.innerHTML = `
             ${posCell}
             <td style="font-weight:600; color:var(--primary-color)">${ins.usuario.username}</td>
-            <td style="font-weight:bold; font-size:1.2rem; color:var(--accent-color)">${ins.puntosAcumulados}</td>
-            <td>${ins.partidasJugadas}</td>
-            <td>-</td>
+            <td style="font-weight:bold; font-size:1.2rem; color:var(--accent-color)">${ins.puntosAcumulados || 0.0}</td>
+            <td>${ins.partidasJugadas || 0}</td>
+            <td>${ins.victorias || 0}</td>
         `;
         tbody.appendChild(row);
     });
 }
+
+window.openEditTournamentModal = function(t) {
+    document.getElementById('edit-t-id').value = t.id;
+    document.getElementById('edit-t-name').value = t.nombre;
+    document.getElementById('edit-t-location').value = t.ubicacion || '';
+    document.getElementById('edit-t-desc').value = t.descripcion || '';
+    openModal('edit-tournament-modal');
+};
+
+async function renderUsers() {
+    const res = await fetch('http://localhost:8080/api/usuarios');
+    const users = await res.json();
+    const tbody = document.querySelector('#global-users-table tbody');
+    tbody.innerHTML = '';
+    
+    users.forEach(u => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td><strong>${u.username}</strong></td>
+            <td>${u.email}</td>
+            <td><input type="number" value="${u.eloRating}" class="form-control" style="width:80px" onchange="updateUserElo(${u.id}, this.value)"></td>
+            <td><span class="status-badge ${u.role === 'ADMIN' ? 'status-active' : ''}">${u.role}</span></td>
+            <td>
+                <button class="btn btn-danger btn-sm" onclick="deleteUser(${u.id})"><i class="fa-solid fa-trash"></i></button>
+            </td>
+        `;
+        tbody.appendChild(tr);
+    });
+}
+
+window.updateUserElo = async function(id, elo) {
+    await fetch(`http://localhost:8080/api/usuarios/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ eloRating: elo })
+    });
+    alert("ELO actualizado con éxito");
+    renderUsers();
+};
+
+window.deleteUser = async function(id) {
+    if(!confirm('¿Estás seguro de eliminar a este usuario del sistema?')) return;
+    await fetch(`http://localhost:8080/api/usuarios/${id}`, { method: 'DELETE' });
+    renderUsers();
+};
