@@ -4,6 +4,7 @@
  */
 
 let currentTournamentId = null;
+// API_BASE is declared in api.js globally
 
 document.addEventListener('DOMContentLoaded', () => {
     checkAuthStatus();
@@ -49,6 +50,7 @@ function initNavigation() {
             showView(target);
             if(target === 'dashboard-view') renderDashboard();
             if(target === 'tournaments-view') renderTournamentList();
+            if(target === 'users-view') renderUsers();
         });
     });
 
@@ -110,7 +112,8 @@ function initForms() {
             const res = await API.login(user, pass);
             if (res) {
                 localStorage.setItem('currentUser', JSON.stringify(res));
-                document.getElementById('login-overlay').style.display = 'none';
+                // Force check and UI update
+                checkAuthStatus(); 
                 renderDashboard();
             } else {
                 errorDiv.textContent = 'Credenciales inválidas o error de red';
@@ -126,14 +129,16 @@ function initForms() {
             const user = document.getElementById('reg-user').value;
             const email = document.getElementById('reg-email').value;
             const pass = document.getElementById('reg-pass').value;
-            const role = document.getElementById('reg-role').value;
-            const res = await API.register(user, pass, email, role);
+            
+            // All new registrations from management are ADMIN
+            const res = await API.register(user, pass, email, 'ADMIN'); 
+            
             if (res) {
-                // Auto login after register
-                localStorage.setItem('currentUser', JSON.stringify(res));
-                document.getElementById('login-overlay').style.display = 'none';
-                renderDashboard();
-                checkAuthStatus();
+                alert("Cuenta creada con éxito. Ya puedes iniciar sesión.");
+                // Toggle back to login form
+                toggleLink.click(); 
+                // Clear fields
+                formRegister.reset();
             } else {
                 errorDiv.textContent = 'Error al registrar, nombre usuario puede estar en uso';
                 errorDiv.style.display = 'block';
@@ -163,11 +168,14 @@ function initForms() {
         const elo = document.getElementById('form-p-elo').value;
         
         // Custom API method added to api.js (I need to make sure it matches the new controller)
-        await fetch(`http://localhost:8080/api/torneos/${currentTournamentId}/inscripciones`, {
+        await fetch(`${window.API_BASE}/torneos/${currentTournamentId}/inscripciones`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ nombre, elo: elo || 1200 })
-        }).catch(err => alert("Error: no se pudo contectar con el servidor."));
+        }).catch(err => {
+            console.error("Error inscripciones:", err);
+            alert("Error: no se pudo conectar con el servidor.");
+        });
 
         document.getElementById('form-p-name').value = '';
         document.getElementById('form-p-elo').value = '';
@@ -182,7 +190,7 @@ function initForms() {
         const ubicacion = document.getElementById('edit-t-location').value;
         const descripcion = document.getElementById('edit-t-desc').value;
         
-        await fetch(`http://localhost:8080/api/torneos/${id}`, {
+        await fetch(`${window.API_BASE}/torneos/${id}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ nombre, ubicacion, descripcion })
@@ -194,18 +202,7 @@ function initForms() {
         renderTournamentList();
     });
 
-    document.querySelectorAll('.nav-btn').forEach(btn => {
-        btn.addEventListener('click', () => {
-            const target = btn.getAttribute('data-target');
-            showView(target);
-            document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
-            btn.classList.add('active');
-            
-            if(target === 'dashboard-view') renderDashboard();
-            if(target === 'tournaments-view') renderTournamentList();
-            if(target === 'users-view') renderUsers();
-        });
-    });
+
 }
 
 async function renderDashboard() {
@@ -279,14 +276,7 @@ window.openTournamentDetail = async function(id) {
     renderTournamentDetail(id);
 };
 
-window.deleteTournament = async function(id) {
-    if(confirm('¿Seguro que deseas eliminar todo este torneo y sus datos? Esta acción no se puede deshacer.')) {
-        await API.deleteTorneo(id);
-        showView('tournaments-view');
-        renderTournamentList();
-        renderDashboard();
-    }
-};
+
 
 window.removeInscripcion = async function(insId) {
     if(!currentTournamentId) return;
@@ -343,14 +333,19 @@ async function renderTournamentDetail(id) {
         document.getElementById('btn-add-player').style.display = 'inline-flex';
     } else if (t.estado === 'EN_CURSO') {
         const btnFinish = document.createElement('button');
+        btnFinish.type = 'button';
         btnFinish.className = 'btn btn-primary';
         btnFinish.innerHTML = '<i class="fa-solid fa-flag-checkered"></i> Concluir Torneo';
-        btnFinish.onclick = () => finishTournament(t.id);
+        btnFinish.onclick = () => {
+             console.log("Concluir Torneo clickeado para ID:", t.id);
+             finishTournament(t.id);
+        };
         actionsContainer.appendChild(btnFinish);
         document.getElementById('btn-add-player').style.display = 'none';
     } else {
         // FINALIZADO
         const btnDelete = document.createElement('button');
+        btnDelete.type = 'button';
         btnDelete.className = 'btn btn-danger';
         btnDelete.style.marginRight = '0.5rem';
         btnDelete.innerHTML = '<i class="fa-solid fa-trash"></i> Eliminar Histórico';
@@ -421,18 +416,29 @@ window.deleteTournament = async function(tId) {
 window.finishTournament = async function(tId) {
     if(!confirm('¿Estás seguro de que deseas finalizar este torneo? Los resultados serán definitivos.')) return;
     try {
-        await fetch(`http://localhost:8080/api/torneos/${tId}/finalizar`, { method: 'PUT' });
-        renderDashboard();
-        renderTournamentDetail(tId);
+        const response = await fetch(`${API_BASE}/torneos/${tId}/finalizar`, { 
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' }
+        });
+        
+        if (response.ok) {
+            alert("Torneo finalizado con éxito.");
+            renderDashboard();
+            renderTournamentDetail(tId);
+        } else {
+            const errorData = await response.json().catch(() => ({}));
+            alert("Error del servidor: " + (errorData.message || "No se pudo finalizar el torneo."));
+        }
     } catch (e) {
-        alert("Error al finalizar el torneo.");
+        console.error("Error finishTournament:", e);
+        alert("Error de red: no se pudo contactar con el servidor.");
     }
 };
 
 // Simplified result handling for the new API
 window.handleResultChange = async function(partidaId, value, tId) {
     if(!value) return; 
-    await fetch(`http://localhost:8080/api/partidas/${partidaId}/resultado`, {
+    await fetch(`${window.API_BASE}/partidas/${partidaId}/resultado`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ resultado: value })
@@ -540,7 +546,7 @@ window.openEditTournamentModal = function(t) {
 };
 
 async function renderUsers() {
-    const res = await fetch('http://localhost:8080/api/usuarios');
+    const res = await fetch(`${window.API_BASE}/usuarios`);
     const users = await res.json();
     const tbody = document.querySelector('#global-users-table tbody');
     tbody.innerHTML = '';
@@ -572,6 +578,6 @@ window.updateUserElo = async function(id, elo) {
 
 window.deleteUser = async function(id) {
     if(!confirm('¿Estás seguro de eliminar a este usuario del sistema?')) return;
-    await fetch(`http://localhost:8080/api/usuarios/${id}`, { method: 'DELETE' });
+    await fetch(`${window.API_BASE}/usuarios/${id}`, { method: 'DELETE' });
     renderUsers();
 };

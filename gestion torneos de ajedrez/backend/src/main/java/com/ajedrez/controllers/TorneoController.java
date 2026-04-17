@@ -123,6 +123,7 @@ public class TorneoController {
     public ResponseEntity<?> finalizarTorneo(@PathVariable Long id) {
         return torneoRepository.findById(id).map(torneo -> {
             torneo.setEstado("FINALIZADO");
+            torneo.setFechaFin(new java.util.Date());
             return ResponseEntity.ok(torneoRepository.save(torneo));
         }).orElse(ResponseEntity.notFound().build());
     }
