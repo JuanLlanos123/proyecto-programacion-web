@@ -7,6 +7,12 @@ let currentTournamentId = null;
 // API_BASE is declared in api.js globally
 
 document.addEventListener('DOMContentLoaded', () => {
+    // Global error handling for better debugging
+    window.onerror = function(msg, url, lineNo, columnNo, error) {
+        console.error('Error: ' + msg + '\nScript: ' + url + '\nLine: ' + lineNo + '\nColumn: ' + columnNo + '\nStackTrace: ' + (error ? error.stack : ''));
+        return false;
+    };
+
     checkAuthStatus();
     initNavigation();
     initModals();
@@ -65,13 +71,21 @@ function initNavigation() {
     });
 }
 
-function showView(viewId) {
+window.showView = function(viewId) {
     document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
-    document.getElementById(viewId).classList.add('active');
-}
+    const target = document.getElementById(viewId);
+    if (target) target.classList.add('active');
+};
 
-function openModal(modalId) { document.getElementById(modalId).classList.add('active'); }
-function closeModal(modalId) { document.getElementById(modalId).classList.remove('active'); }
+window.openModal = function(modalId) { 
+    const modal = document.getElementById(modalId);
+    if (modal) modal.classList.add('active'); 
+};
+
+window.closeModal = function(modalId) { 
+    const modal = document.getElementById(modalId);
+    if (modal) modal.classList.remove('active'); 
+};
 function initModals() {
     document.querySelectorAll('.modal-overlay').forEach(modal => {
         modal.addEventListener('click', (e) => { if (e.target === modal) modal.classList.remove('active'); });
@@ -146,61 +160,69 @@ function initForms() {
         });
     }
 
-    document.getElementById('form-create-tournament').addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const nombre = document.getElementById('form-t-name').value;
-        const t = await API.createTorneo({ nombre, descripcion: "Torneo de Ajedrez", sistemaJuego: "ROUND_ROBIN" });
-        if(t) {
-            document.getElementById('form-t-name').value = '';
-            closeModal('create-tournament-modal');
+    const formCreate = document.getElementById('form-create-tournament');
+    if (formCreate) {
+        formCreate.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const nombre = document.getElementById('form-t-name').value;
+            const t = await API.createTorneo({ nombre, descripcion: "Torneo de Ajedrez", sistemaJuego: "ROUND_ROBIN" });
+            if(t) {
+                document.getElementById('form-t-name').value = '';
+                closeModal('create-tournament-modal');
+                renderDashboard();
+                renderTournamentList();
+                openTournamentDetail(t.id);
+            } else {
+                alert("Error al crear el torneo. Asegúrate de que el servidor (backend) esté en ejecución en el puerto 8080.");
+            }
+        });
+    }
+
+    const formAddPlayer = document.getElementById('form-add-player');
+    if (formAddPlayer) {
+        formAddPlayer.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            if(!currentTournamentId) return;
+            const nombre = document.getElementById('form-p-name').value;
+            const elo = document.getElementById('form-p-elo').value;
+            
+            await fetch(`${window.API_BASE}/torneos/${currentTournamentId}/inscripciones`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ nombre, elo: elo || 1200 })
+            }).catch(err => {
+                console.error("Error inscripciones:", err);
+                alert("Error: no se pudo conectar con el servidor.");
+            });
+
+            document.getElementById('form-p-name').value = '';
+            document.getElementById('form-p-elo').value = '';
+            closeModal('add-player-modal');
+            renderTournamentDetail(currentTournamentId);
+        });
+    }
+
+    const formEdit = document.getElementById('form-edit-tournament');
+    if (formEdit) {
+        formEdit.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const id = document.getElementById('edit-t-id').value;
+            const nombre = document.getElementById('edit-t-name').value;
+            const ubicacion = document.getElementById('edit-t-location').value;
+            const descripcion = document.getElementById('edit-t-desc').value;
+            
+            await fetch(`${window.API_BASE}/torneos/${id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ nombre, ubicacion, descripcion })
+            });
+            
+            closeModal('edit-tournament-modal');
+            renderTournamentDetail(id);
             renderDashboard();
             renderTournamentList();
-            openTournamentDetail(t.id);
-        } else {
-            alert("Error al crear el torneo. Asegúrate de que el servidor (backend) esté en ejecución en el puerto 8080.");
-        }
-    });
-
-    document.getElementById('form-add-player').addEventListener('submit', async (e) => {
-        e.preventDefault();
-        if(!currentTournamentId) return;
-        const nombre = document.getElementById('form-p-name').value;
-        const elo = document.getElementById('form-p-elo').value;
-        
-        // Custom API method added to api.js (I need to make sure it matches the new controller)
-        await fetch(`${window.API_BASE}/torneos/${currentTournamentId}/inscripciones`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ nombre, elo: elo || 1200 })
-        }).catch(err => {
-            console.error("Error inscripciones:", err);
-            alert("Error: no se pudo conectar con el servidor.");
         });
-
-        document.getElementById('form-p-name').value = '';
-        document.getElementById('form-p-elo').value = '';
-        closeModal('add-player-modal');
-        renderTournamentDetail(currentTournamentId);
-    });
-
-    document.getElementById('form-edit-tournament').addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const id = document.getElementById('edit-t-id').value;
-        const nombre = document.getElementById('edit-t-name').value;
-        const ubicacion = document.getElementById('edit-t-location').value;
-        const descripcion = document.getElementById('edit-t-desc').value;
-        
-        await fetch(`${window.API_BASE}/torneos/${id}`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ nombre, ubicacion, descripcion })
-        });
-        
-        closeModal('edit-tournament-modal');
-        renderTournamentDetail(id);
-        renderDashboard();
-        renderTournamentList();
-    });
+    }
 
 
 }
@@ -217,7 +239,7 @@ async function renderDashboard() {
 
     for (const t of tournaments) {
         try {
-            const inscRes = await fetch(`${API_BASE}/torneos/${t.id}/inscripciones`);
+            const inscRes = await fetch(`${window.API_BASE}/torneos/${t.id}/inscripciones`);
             const insc = await inscRes.json();
             if(insc) totalP += insc.length;
 
@@ -300,7 +322,7 @@ async function renderTournamentDetail(id) {
     sBadge.textContent = sLabel;
 
     // Get inscriptions to check player count
-    const inscRes = await fetch(`${API_BASE}/torneos/${id}/inscripciones`);
+    const inscRes = await fetch(`${window.API_BASE}/torneos/${id}/inscripciones`);
     const inscripciones = await inscRes.json();
 
     const btnGenRounds = document.getElementById('btn-generate-rounds');
@@ -416,7 +438,7 @@ window.deleteTournament = async function(tId) {
 window.finishTournament = async function(tId) {
     if(!confirm('¿Estás seguro de que deseas finalizar este torneo? Los resultados serán definitivos.')) return;
     try {
-        const response = await fetch(`${API_BASE}/torneos/${tId}/finalizar`, { 
+        const response = await fetch(`${window.API_BASE}/torneos/${tId}/finalizar`, { 
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' }
         });
