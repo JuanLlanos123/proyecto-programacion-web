@@ -103,6 +103,17 @@ const API = {
         }
     },
 
+    async getUsuarios() {
+        try {
+            const response = await fetchWithAuth(`${API_BASE}/usuarios`);
+            if(response.ok) return await response.json();
+            return [];
+        } catch (error) {
+            console.error("Error fetching usuarios:", error);
+            return [];
+        }
+    },
+
     // Auth
     async login(username, password, recaptchaToken) {
         try {

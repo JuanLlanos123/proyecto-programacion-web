@@ -4,14 +4,48 @@
  */
 
 let currentTournamentId = null;
+// API_BASE is declared in api.js globally
 
 document.addEventListener('DOMContentLoaded', () => {
+    // Global error handling for better debugging
+    window.onerror = function(msg, url, lineNo, columnNo, error) {
+        console.error('Error: ' + msg + '\nScript: ' + url + '\nLine: ' + lineNo + '\nColumn: ' + columnNo + '\nStackTrace: ' + (error ? error.stack : ''));
+        return false;
+    };
+
+    checkAuthStatus();
     initNavigation();
     initModals();
     initForms();
     renderDashboard();
     renderTournamentList();
 });
+
+function checkAuthStatus() {
+    const userStr = localStorage.getItem('currentUser');
+    if (!userStr) {
+        document.getElementById('login-overlay').style.display = 'flex';
+    } else {
+        const user = JSON.parse(userStr);
+        document.getElementById('login-overlay').style.display = 'none';
+        
+        // Update Sidebar Profile
+        document.getElementById('current-username').textContent = user.username;
+        const roleBadge = document.getElementById('user-role-badge');
+        
+        // True Role distinction from Database
+        const isAdmin = user.role === 'ADMIN';
+        if (isAdmin) {
+            roleBadge.textContent = 'ADMINISTRADOR';
+            roleBadge.style.color = '#eab308'; // Gold
+            document.querySelectorAll('.admin-only').forEach(el => el.style.display = 'block');
+        } else {
+            roleBadge.textContent = 'JUGADOR / LEYENDA';
+            roleBadge.style.color = '#94a3b8'; // Silver/Gray
+            document.querySelectorAll('.admin-only').forEach(el => el.style.display = 'none');
+        }
+    }
+}
 
 function initNavigation() {
     document.querySelectorAll('.nav-btn').forEach(btn => {
@@ -22,6 +56,8 @@ function initNavigation() {
             showView(target);
             if(target === 'dashboard-view') renderDashboard();
             if(target === 'tournaments-view') renderTournamentList();
+            if(target === 'users-view') renderUsers();
+            if(target === 'ranking-view') renderGlobalRanking();
         });
     });
 
@@ -36,13 +72,21 @@ function initNavigation() {
     });
 }
 
-function showView(viewId) {
+window.showView = function(viewId) {
     document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
-    document.getElementById(viewId).classList.add('active');
-}
+    const target = document.getElementById(viewId);
+    if (target) target.classList.add('active');
+};
 
-function openModal(modalId) { document.getElementById(modalId).classList.add('active'); }
-function closeModal(modalId) { document.getElementById(modalId).classList.remove('active'); }
+window.openModal = function(modalId) { 
+    const modal = document.getElementById(modalId);
+    if (modal) modal.classList.add('active'); 
+};
+
+window.closeModal = function(modalId) { 
+    const modal = document.getElementById(modalId);
+    if (modal) modal.classList.remove('active'); 
+};
 function initModals() {
     document.querySelectorAll('.modal-overlay').forEach(modal => {
         modal.addEventListener('click', (e) => { if (e.target === modal) modal.classList.remove('active'); });
@@ -50,37 +94,160 @@ function initModals() {
 }
 
 function initForms() {
-    document.getElementById('form-create-tournament').addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const nombre = document.getElementById('form-t-name').value;
-        const t = await API.createTorneo({ nombre, descripcion: "Torneo de Ajedrez", sistemaJuego: "ROUND_ROBIN" });
-        if(t) {
-            document.getElementById('form-t-name').value = '';
-            closeModal('create-tournament-modal');
+    // Auth Form Logic
+    const errorDiv = document.getElementById('login-error');
+    
+    // Toggle Login/Register
+    const toggleLink = document.getElementById('toggle-auth-mode');
+    const formLogin = document.getElementById('form-login');
+    const formRegister = document.getElementById('form-register');
+    
+    if(toggleLink) {
+        toggleLink.addEventListener('click', (e) => {
+            e.preventDefault();
+            errorDiv.style.display = 'none';
+            if(formLogin.style.display === 'none') {
+                formLogin.style.display = 'block';
+                formRegister.style.display = 'none';
+                toggleLink.textContent = '¿No tienes cuenta? Regístrate';
+            } else {
+                formLogin.style.display = 'none';
+                formRegister.style.display = 'block';
+                toggleLink.textContent = '¿Ya tienes cuenta? Inicia sesión';
+            }
+        });
+    }
+
+    if (formLogin) {
+        formLogin.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            errorDiv.style.display = 'none';
+            const user = document.getElementById('login-user').value;
+            const pass = document.getElementById('login-pass').value;
+            const recaptchaToken = grecaptcha.getResponse(0); // 0 es el primer widget (login)
+            
+            if(!recaptchaToken) {
+                errorDiv.textContent = 'Por favor, marca la casilla "No soy un robot"';
+                errorDiv.style.display = 'block';
+                return;
+            }
+            
+            const res = await API.login(user, pass, recaptchaToken);
+            if (res && res.token) {
+                localStorage.setItem('jwt_token', res.token);
+                localStorage.setItem('currentUser', JSON.stringify(res.usuario));
+                // Force check and UI update
+                checkAuthStatus(); 
+                renderDashboard();
+            } else {
+                errorDiv.textContent = 'Credenciales inválidas o error de red';
+                errorDiv.style.display = 'block';
+            }
+        });
+    }
+
+    if (formRegister) {
+        formRegister.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            errorDiv.style.display = 'none';
+            const user = document.getElementById('reg-user').value;
+            const email = document.getElementById('reg-email').value;
+            const pass = document.getElementById('reg-pass').value;
+            const elo = parseInt(document.getElementById('reg-elo').value) || 1200;
+            const recaptchaToken = grecaptcha.getResponse(1); // 1 es el segundo widget (register)
+            
+            if(!recaptchaToken) {
+                errorDiv.textContent = 'Por favor, marca la casilla "No soy un robot"';
+                errorDiv.style.display = 'block';
+                return;
+            }
+            
+            // All new registrations from management are ADMIN
+            const res = await API.register(user, pass, email, 'ADMIN', elo, recaptchaToken); 
+            
+            if (res) {
+                alert("Cuenta creada con éxito. Ya puedes iniciar sesión.");
+                // Toggle back to login form
+                toggleLink.click(); 
+                // Clear fields
+                formRegister.reset();
+            } else {
+                errorDiv.textContent = 'Error al registrar, nombre usuario puede estar en uso';
+                errorDiv.style.display = 'block';
+            }
+        });
+    }
+
+    const formCreate = document.getElementById('form-create-tournament');
+    if (formCreate) {
+        formCreate.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const nombre = document.getElementById('form-t-name').value;
+            const t = await API.createTorneo({ nombre, descripcion: "Torneo de Ajedrez", sistemaJuego: "ROUND_ROBIN" });
+            if(t) {
+                document.getElementById('form-t-name').value = '';
+                closeModal('create-tournament-modal');
+                renderDashboard();
+                renderTournamentList();
+                openTournamentDetail(t.id);
+            } else {
+                alert("Error al crear el torneo. Asegúrate de que el servidor (backend) esté en ejecución en el puerto 8080.");
+            }
+        });
+    }
+
+    const formAddPlayer = document.getElementById('form-add-player');
+    if (formAddPlayer) {
+        formAddPlayer.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            if(!currentTournamentId) return;
+            const nombre = document.getElementById('form-p-name').value;
+            const elo = parseInt(document.getElementById('form-p-elo').value) || 1200;
+            
+            if (elo < 0 || elo > 4000) {
+                alert("Error: El ELO debe estar entre 0 y 4000.");
+                return;
+            }
+            
+            await fetchWithAuth(`${window.API_BASE}/torneos/${currentTournamentId}/inscripciones`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ nombre, elo })
+            }).catch(err => {
+                console.error("Error inscripciones:", err);
+                alert("Error: no se pudo conectar con el servidor.");
+            });
+
+            document.getElementById('form-p-name').value = '';
+            document.getElementById('form-p-elo').value = '';
+            closeModal('add-player-modal');
+            renderTournamentDetail(currentTournamentId);
+        });
+    }
+
+    const formEdit = document.getElementById('form-edit-tournament');
+    if (formEdit) {
+        formEdit.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const id = document.getElementById('edit-t-id').value;
+            const nombre = document.getElementById('edit-t-name').value;
+            const ubicacion = document.getElementById('edit-t-location').value;
+            const descripcion = document.getElementById('edit-t-desc').value;
+            
+            await fetchWithAuth(`${window.API_BASE}/torneos/${id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ nombre, ubicacion, descripcion })
+            });
+            
+            closeModal('edit-tournament-modal');
+            renderTournamentDetail(id);
             renderDashboard();
             renderTournamentList();
-            openTournamentDetail(t.id);
-        }
-    });
-
-    document.getElementById('form-add-player').addEventListener('submit', async (e) => {
-        e.preventDefault();
-        if(!currentTournamentId) return;
-        const nombre = document.getElementById('form-p-name').value;
-        const elo = document.getElementById('form-p-elo').value;
-        
-        // Custom API method added to api.js (I need to make sure it matches the new controller)
-        await fetch(`http://localhost:8080/api/torneos/${currentTournamentId}/inscripciones`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ nombre, elo: elo || 1200 })
         });
+    }
 
-        document.getElementById('form-p-name').value = '';
-        document.getElementById('form-p-elo').value = '';
-        closeModal('add-player-modal');
-        renderTournamentDetail(currentTournamentId);
-    });
+
 }
 
 async function renderDashboard() {
@@ -90,12 +257,26 @@ async function renderDashboard() {
     const activeT = tournaments.filter(t => t.estado === 'EN_CURSO').length;
     document.getElementById('stat-active-tournaments').textContent = activeT;
     
-    // For large stats, we'd need more specific endpoints, but for now we calculate
     let totalP = 0;
-    // Note: To get total players efficiently we'd need a backend count, 
-    // but for the demo we'll just sum what we have or set a placeholder
-    document.getElementById('stat-total-players').textContent = "...";
-    document.getElementById('stat-active-matches').textContent = "...";
+    let activeM = 0;
+
+    for (const t of tournaments) {
+        try {
+            const inscRes = await fetchWithAuth(`${window.API_BASE}/torneos/${t.id}/inscripciones`);
+            const insc = await inscRes.json();
+            if(insc) totalP += insc.length;
+
+            if (t.estado === 'EN_CURSO') {
+                const partidas = await API.getPartidas(t.id);
+                if(partidas) activeM += partidas.filter(p => !p.resultado || p.resultado === 'P' || p.resultado === '').length;
+            }
+        } catch (e) {
+            console.error("No se pudieron cargar estadisticas completas para", t.id);
+        }
+    }
+
+    document.getElementById('stat-total-players').textContent = totalP;
+    document.getElementById('stat-active-matches').textContent = activeM;
 
     // Upcoming list
     const recentList = document.getElementById('recent-tournaments-list');
@@ -103,14 +284,61 @@ async function renderDashboard() {
     const recent = [...tournaments].reverse().slice(0, 4);
     if(recent.length === 0) recentList.innerHTML = '<p class="text-muted">No hay torneos próximos.</p>';
     else recent.forEach(t => recentList.appendChild(createTournamentUIItem(t)));
+
+    // Ranking Global
+    renderGlobalRanking();
+}
+
+async function renderGlobalRanking() {
+    const users = await API.getUsuarios();
+    const tbody = document.querySelector('#global-ranking-table tbody');
+    if(!tbody) return;
+    
+    tbody.innerHTML = '';
+    
+    // Ordenar por ELO descendente
+    const sortedUsers = [...users].sort((a, b) => (b.eloRating || 0) - (a.eloRating || 0));
+    
+    sortedUsers.forEach((u, index) => {
+        const tr = document.createElement('tr');
+        // Asignar colores/estilos según posición
+        let posStyle = '';
+        if(index === 0) posStyle = 'color: #d4af37; font-weight: bold; font-size: 1.2rem;'; // Oro
+        else if(index === 1) posStyle = 'color: #c0c0c0; font-weight: bold;'; // Plata
+        else if(index === 2) posStyle = 'color: #cd7f32; font-weight: bold;'; // Bronce
+
+        const roleIcon = u.role === 'ADMIN' ? '<i class="fa-solid fa-crown" title="Administrador" style="color:#d4af37; margin-right:5px;"></i>' : '<i class="fa-solid fa-chess-pawn" style="color:var(--text-muted); margin-right:5px;"></i>';
+        const roleLabel = u.role === 'ADMIN' ? 'Gran Maestro (Admin)' : 'Jugador';
+
+        tr.innerHTML = `
+            <td style="${posStyle}">#${index + 1}</td>
+            <td style="font-weight:600;">${u.username}</td>
+            <td>${roleIcon} ${roleLabel}</td>
+            <td style="text-align: right; font-weight: 800; color: #8b5a2b; font-size: 1.1rem;">${u.eloRating || 1200}</td>
+        `;
+        tbody.appendChild(tr);
+    });
 }
 
 async function renderTournamentList() {
     const tList = await API.getTorneos();
     const lc = document.getElementById('all-tournaments-list');
     lc.innerHTML = '';
-    if(!tList || tList.length === 0) lc.innerHTML = '<p class="text-muted mt-4">Lista vacía.</p>';
-    else [...tList].reverse().forEach(t => lc.appendChild(createTournamentUIItem(t)));
+    
+    // Filtrar para que el administrador solo vea los suyos
+    const currentUser = JSON.parse(localStorage.getItem('currentUser') || '{}');
+    const isAdmin = currentUser.role === 'ADMIN';
+    
+    let misTorneos = tList;
+    if (isAdmin) {
+        misTorneos = tList.filter(t => t.organizador && t.organizador.id === currentUser.id);
+    }
+    
+    if(!misTorneos || misTorneos.length === 0) {
+        lc.innerHTML = '<p class="text-muted mt-4">Lista vacía. Crea un torneo para comenzar.</p>';
+    } else {
+        [...misTorneos].reverse().forEach(t => lc.appendChild(createTournamentUIItem(t)));
+    }
 }
 
 function createTournamentUIItem(t) {
@@ -140,6 +368,16 @@ window.openTournamentDetail = async function(id) {
     renderTournamentDetail(id);
 };
 
+
+
+window.removeInscripcion = async function(insId) {
+    if(!currentTournamentId) return;
+    if(confirm('¿Seguro que deseas sacar a este jugador del torneo?')) {
+        await API.deleteInscripcion(currentTournamentId, insId);
+        renderTournamentDetail(currentTournamentId);
+    }
+};
+
 async function renderTournamentDetail(id) {
     const t = await API.getTorneo(id);
     if(!t) return;
@@ -154,7 +392,8 @@ async function renderTournamentDetail(id) {
     sBadge.textContent = sLabel;
 
     // Get inscriptions to check player count
-    const inscripciones = await (await fetch(`http://localhost:8080/api/torneos/${id}/inscripciones`)).json();
+    const inscRes = await fetchWithAuth(`${window.API_BASE}/torneos/${id}/inscripciones`);
+    const inscripciones = await inscRes.json();
 
     const btnGenRounds = document.getElementById('btn-generate-rounds');
     if(t.estado === 'PENDIENTE' && inscripciones.length >= 2) {
@@ -165,16 +404,46 @@ async function renderTournamentDetail(id) {
 
     const actionsContainer = document.getElementById('detail-t-actions');
     actionsContainer.innerHTML = '';
+    
+    // Add delete button if pending
     if(t.estado === 'PENDIENTE') {
+        const btnDelete = document.createElement('button');
+        btnDelete.className = 'btn btn-danger';
+        btnDelete.style.marginRight = '0.5rem';
+        btnDelete.innerHTML = '<i class="fa-solid fa-trash"></i> Eliminar Torneo';
+        btnDelete.onclick = () => deleteTournament(t.id);
+        actionsContainer.appendChild(btnDelete);
+        
+        const btnEdit = document.createElement('button');
+        btnEdit.className = 'btn btn-secondary';
+        btnEdit.style.background = '#e2d2c1';
+        btnEdit.style.color = '#4a3018';
+        btnEdit.innerHTML = '<i class="fa-solid fa-pen-to-square"></i> Editar';
+        btnEdit.onclick = () => openEditTournamentModal(t);
+        actionsContainer.appendChild(btnEdit);
+
         document.getElementById('btn-add-player').style.display = 'inline-flex';
     } else if (t.estado === 'EN_CURSO') {
         const btnFinish = document.createElement('button');
+        btnFinish.type = 'button';
         btnFinish.className = 'btn btn-primary';
         btnFinish.innerHTML = '<i class="fa-solid fa-flag-checkered"></i> Concluir Torneo';
-        btnFinish.onclick = () => finishTournament(t.id);
+        btnFinish.onclick = () => {
+             console.log("Concluir Torneo clickeado para ID:", t.id);
+             finishTournament(t.id);
+        };
         actionsContainer.appendChild(btnFinish);
         document.getElementById('btn-add-player').style.display = 'none';
     } else {
+        // FINALIZADO
+        const btnDelete = document.createElement('button');
+        btnDelete.type = 'button';
+        btnDelete.className = 'btn btn-danger';
+        btnDelete.style.marginRight = '0.5rem';
+        btnDelete.innerHTML = '<i class="fa-solid fa-trash"></i> Eliminar Histórico';
+        btnDelete.onclick = () => deleteTournament(t.id);
+        actionsContainer.appendChild(btnDelete);
+        
         document.getElementById('btn-add-player').style.display = 'none';
     }
 
@@ -187,14 +456,14 @@ async function renderTournamentDetail(id) {
 function renderPlayers(inscripciones, estado) {
     const tbody = document.querySelector('#players-table tbody');
     tbody.innerHTML = '';
-    if(inscripciones.length === 0) {
+    if(!inscripciones || inscripciones.length === 0) {
         tbody.innerHTML = '<tr><td colspan="3" class="text-center">No hay jugadores</td></tr>'; return;
     }
     inscripciones.forEach(ins => {
         const p = ins.usuario;
         const tr = document.createElement('tr');
         tr.innerHTML = `
-            <td style="font-weight:600; color:var(--primary-color)">${p.username}</td>
+            <td style="font-weight:600; color:var(--primary-color)"><a href="#" onclick="openPlayerStats('${ins.id}', '${p.id}', '${p.username}', '${p.eloRating}', '${ins.puntosAcumulados || 0.0}', ${ins.victorias || 0}, ${ins.empates || 0}, ${ins.derrotas || 0})" style="text-decoration:none; color:inherit;">${p.username}</a></td>
             <td><span class="elo-tag" style="background:var(--accent-light); color:var(--primary-color)">${p.eloRating}</span></td>
             <td>${estado === 'PENDIENTE' ? `<button class="btn btn-danger" onclick="removeInscripcion('${ins.id}')"><i class="fa-solid fa-trash"></i></button>` : '-'}</td>
         `;
@@ -202,16 +471,67 @@ function renderPlayers(inscripciones, estado) {
     });
 }
 
+window.openPlayerStats = function(insId, userId, username, elo, points, wins, draws, losses) {
+    document.getElementById('stats-player-name').innerHTML = `<i class="fa-solid fa-user-astronaut"></i> ${username}`;
+    document.getElementById('stats-player-elo').textContent = elo || 'N/A';
+    document.getElementById('stats-player-points').textContent = points || '0.0';
+    
+    document.getElementById('stats-player-wins').textContent = wins || 0;
+    document.getElementById('stats-player-draws').textContent = draws || 0;
+    document.getElementById('stats-player-losses').textContent = losses || 0;
+    
+    openModal('player-stats-modal');
+}
+
+window.logout = function() {
+    localStorage.removeItem('currentUser');
+    localStorage.removeItem('jwt_token');
+    location.reload(); // Refresh to clear all state and show login
+};
+
 window.startTournament = async function(tId) {
     await API.startTorneo(tId);
     renderDashboard();
     renderTournamentDetail(tId);
 };
 
+window.deleteTournament = async function(tId) {
+    if(!confirm('¿Estás seguro de que deseas eliminar este torneo? Esta acción no se puede deshacer.')) return;
+    try {
+        await API.deleteTorneo(tId);
+        showView('dashboard-view');
+        renderDashboard();
+    } catch (e) {
+        alert("Error al eliminar el torneo.");
+    }
+};
+
+window.finishTournament = async function(tId) {
+    if(!confirm('¿Estás seguro de que deseas finalizar este torneo? Los resultados serán definitivos.')) return;
+    try {
+        const response = await fetchWithAuth(`${window.API_BASE}/torneos/${tId}/finalizar`, { 
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' }
+        });
+        
+        if (response.ok) {
+            alert("Torneo finalizado con éxito.");
+            renderDashboard();
+            renderTournamentDetail(tId);
+        } else {
+            const errorData = await response.json().catch(() => ({}));
+            alert("Error del servidor: " + (errorData.message || "No se pudo finalizar el torneo."));
+        }
+    } catch (e) {
+        console.error("Error finishTournament:", e);
+        alert("Error de red: no se pudo contactar con el servidor.");
+    }
+};
+
 // Simplified result handling for the new API
 window.handleResultChange = async function(partidaId, value, tId) {
     if(!value) return; 
-    await fetch(`http://localhost:8080/api/partidas/${partidaId}/resultado`, {
+    await fetchWithAuth(`${window.API_BASE}/partidas/${partidaId}/resultado`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ resultado: value })
@@ -302,10 +622,60 @@ function renderStandings(inscripciones, estado) {
         row.innerHTML = `
             ${posCell}
             <td style="font-weight:600; color:var(--primary-color)">${ins.usuario.username}</td>
-            <td style="font-weight:bold; font-size:1.2rem; color:var(--accent-color)">${ins.puntosAcumulados}</td>
-            <td>${ins.partidasJugadas}</td>
-            <td>-</td>
+            <td style="font-weight:bold; font-size:1.2rem; color:var(--accent-color)">${ins.puntosAcumulados || 0.0}</td>
+            <td>${ins.partidasJugadas || 0}</td>
+            <td>${ins.victorias || 0}</td>
         `;
         tbody.appendChild(row);
     });
 }
+
+window.openEditTournamentModal = function(t) {
+    document.getElementById('edit-t-id').value = t.id;
+    document.getElementById('edit-t-name').value = t.nombre;
+    document.getElementById('edit-t-location').value = t.ubicacion || '';
+    document.getElementById('edit-t-desc').value = t.descripcion || '';
+    openModal('edit-tournament-modal');
+};
+
+async function renderUsers() {
+    const res = await fetchWithAuth(`${window.API_BASE}/usuarios`);
+    const users = await res.json();
+    const tbody = document.querySelector('#global-users-table tbody');
+    tbody.innerHTML = '';
+    
+    users.forEach(u => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td><strong>${u.username}</strong></td>
+            <td>${u.email}</td>
+            <td><input type="number" value="${u.eloRating}" min="0" max="4000" class="form-control" style="width:80px" onchange="updateUserElo(${u.id}, this.value)"></td>
+            <td><span class="status-badge ${u.role === 'ADMIN' ? 'status-active' : ''}">${u.role}</span></td>
+            <td>
+                <button class="btn btn-danger btn-sm" onclick="deleteUser(${u.id})"><i class="fa-solid fa-trash"></i></button>
+            </td>
+        `;
+        tbody.appendChild(tr);
+    });
+}
+
+window.updateUserElo = async function(id, elo) {
+    if (elo < 0 || elo > 4000) {
+        alert("Error: El ELO debe estar entre 0 y 4000.");
+        renderUsers(); // Revertir el valor en la UI
+        return;
+    }
+    await fetchWithAuth(`${window.API_BASE}/usuarios/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ eloRating: elo })
+    }).catch(e => alert("Error al actualizar ELO"));
+    alert("ELO actualizado con éxito");
+    renderUsers();
+};
+
+window.deleteUser = async function(id) {
+    if(!confirm('¿Estás seguro de eliminar a este usuario del sistema?')) return;
+    await fetchWithAuth(`${window.API_BASE}/usuarios/${id}`, { method: 'DELETE' });
+    renderUsers();
+};

@@ -9,8 +9,61 @@
     <!-- FontAwesome for icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="css/styles.css">
+    <!-- Google reCAPTCHA v2 -->
+    <script src="https://www.google.com/recaptcha/api.js" async defer></script>
 </head>
 <body>
+    <!-- LOGIN OVERLAY -->
+    <div id="login-overlay" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:url('img/bg-chess.png') no-repeat center center; background-size: cover; z-index:9999; justify-content:center; align-items:center;">
+        <div style="position:absolute; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.4); backdrop-filter: blur(5px);"></div>
+        <div class="card" style="width: 400px; text-align: center; background: rgba(255,255,255,0.95); padding: 2rem; border-radius: 12px; box-shadow: 0 20px 50px rgba(0,0,0,0.5); border: 2px solid #8b5a2b; position:relative; z-index:1;">
+            <i class="fa-solid fa-chess-knight" style="font-size: 3.5rem; color: #8b5a2b; margin-bottom: 1rem; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.2));"></i>
+            <h2 style="color: #4a3018; font-size: 1.8rem; margin-bottom: 0.5rem; font-weight: 800;">Digital Curator</h2>
+            <p style="color: #6a4a30; margin-bottom: 2rem; font-weight: 500; font-size: 1.1rem; letter-spacing: 1px; text-transform: uppercase;">Ajedrez Pro</p>
+            <form id="form-login">
+                <div class="form-group" style="text-align: left; margin-bottom: 1rem;">
+                    <label style="display:block; margin-bottom:0.5rem; font-weight:500; color:#4a3018;">Usuario</label>
+                    <input type="text" id="login-user" class="form-control" required style="width:100%; padding:0.75rem; border:1px solid #c8a98c; border-radius:4px; background:#fffbf7;">
+                </div>
+                <div class="form-group" style="text-align: left; margin-bottom: 1.5rem;">
+                    <label style="display:block; margin-bottom:0.5rem; font-weight:500; color:#4a3018;">Contraseña</label>
+                    <input type="password" id="login-pass" class="form-control" required style="width:100%; padding:0.75rem; border:1px solid #c8a98c; border-radius:4px; background:#fffbf7;">
+                </div>
+                <div class="g-recaptcha" data-sitekey="6Le-KccsAAAAAM7dNenOory_rC3Jv09Vc0jg5NXu" style="margin-bottom:1rem; display:flex; justify-content:center;"></div>
+                <button type="submit" class="btn" style="width:100%; justify-content:center; padding:1rem; background:#8b5a2b; color:white; border:none; border-radius:4px; font-weight:bold; cursor:pointer;">Entrar</button>
+            </form>
+            
+            <form id="form-register" style="display:none;">
+                <div class="form-group" style="text-align: left; margin-bottom: 1rem;">
+                    <label style="display:block; margin-bottom:0.5rem; font-weight:500; color:#4a3018;">Usuario</label>
+                    <input type="text" id="reg-user" class="form-control" required style="width:100%; padding:0.75rem; border:1px solid #c8a98c; border-radius:4px; background:#fffbf7;">
+                </div>
+                <div class="form-group" style="text-align: left; margin-bottom: 1rem;">
+                    <label style="display:block; margin-bottom:0.5rem; font-weight:500; color:#4a3018;">Correo Electrónico</label>
+                    <input type="email" id="reg-email" class="form-control" required style="width:100%; padding:0.75rem; border:1px solid #c8a98c; border-radius:4px; background:#fffbf7;">
+                </div>
+                <div class="form-group" style="text-align: left; margin-bottom: 1rem;">
+                    <label style="display:block; margin-bottom:0.5rem; font-weight:500; color:#4a3018;">Contraseña</label>
+                    <input type="password" id="reg-pass" class="form-control" required style="width:100%; padding:0.75rem; border:1px solid #c8a98c; border-radius:4px; background:#fffbf7;">
+                </div>
+                <div class="form-group" style="text-align: left; margin-bottom: 1.5rem;">
+                    <label style="display:block; margin-bottom:0.5rem; font-weight:500; color:#4a3018;">ELO (Opcional, defecto 1200)</label>
+                    <input type="number" id="reg-elo" class="form-control" min="0" max="4000" style="width:100%; padding:0.75rem; border:1px solid #c8a98c; border-radius:4px; background:#fffbf7;" placeholder="1200">
+                </div>
+                <div class="g-recaptcha" data-sitekey="6Le-KccsAAAAAM7dNenOory_rC3Jv09Vc0jg5NXu" style="margin-bottom:1rem; display:flex; justify-content:center;"></div>
+                <!-- Roles hidden for simplicity as requested -->
+                <input type="hidden" id="reg-role" value="ADMIN">
+                <button type="submit" class="btn" style="width:100%; justify-content:center; padding:1rem; background:#8b5a2b; color:white; border:none; border-radius:4px; font-weight:bold; cursor:pointer;">Crear Cuenta</button>
+            </form>
+            
+            <div id="login-error" style="color:#ef4444; margin-top:1rem; display:none; font-weight:500;">Credenciales inválidas o error de red</div>
+            
+            <div style="margin-top: 1.5rem; border-top: 1px solid #e2d2c1; padding-top: 1rem;">
+                <a href="#" id="toggle-auth-mode" style="color:#8b5a2b; text-decoration:none; font-weight:600;">¿No tienes cuenta? Regístrate</a>
+            </div>
+        </div>
+    </div>
+
     <div class="app-container">
         <!-- Sidebar -->
         <aside class="sidebar">
@@ -18,20 +71,42 @@
                 <i class="fa-solid fa-chess-knight logo-icon"></i>
                 <h1>Digital Curator</h1>
             </div>
+            
+            <div id="user-profile-box" style="padding: 1rem 1.5rem; margin-bottom: 1.5rem; background: rgba(255,255,255,0.05); border-radius: 8px; border-left: 4px solid #8b5a2b;">
+                <div style="display:flex; align-items:center; gap:0.8rem;">
+                    <div style="width:40px; height:40px; background:#8b5a2b; border-radius:50%; display:flex; align-items:center; justify-content:center; color:white;">
+                        <i class="fa-solid fa-user"></i>
+                    </div>
+                    <div>
+                        <div id="current-username" style="font-weight:700; color:white; font-size:1.1rem;">Usuario</div>
+                        <div id="user-role-badge" style="font-weight:600; font-size:0.75rem; color:#8b5a2b; text-transform:uppercase; letter-spacing:1px;">Cargando...</div>
+                    </div>
+                </div>
+            </div>
             <nav class="nav-menu">
-                <div class="nav-section-title">ADMINISTRACIÓN</div>
+                <div class="nav-section-title admin-only">ADMINISTRACIÓN</div>
                 <button class="nav-btn active" data-target="dashboard-view">
-                    <i class="fa-solid fa-chart-line"></i> Dashboard Admin
+                    <i class="fa-solid fa-chart-line"></i> Dashboard
                 </button>
-                <button class="nav-btn" data-target="tournaments-view">
+                <button class="nav-btn admin-only" data-target="tournaments-view">
                     <i class="fa-solid fa-trophy"></i> Mis Torneos
                 </button>
-                
-                <div class="nav-section-title" style="margin-top: 2rem;">VISTA PÚBLICA</div>
-                <button class="nav-btn" data-target="player-view">
-                    <i class="fa-solid fa-user-astronaut"></i> Portal Jugador
+                <button class="nav-btn admin-only" data-target="users-view">
+                    <i class="fa-solid fa-users-gear"></i> Gestión de Usuarios
+                </button>
+                <div class="nav-section-title">PORTAL JUGADOR</div>
+                <button class="nav-btn" data-target="ranking-view">
+                    <i class="fa-solid fa-ranking-star"></i> Ranking Global
                 </button>
             </nav>
+            <div style="padding: 1.5rem; margin-top: auto;">
+                <button class="btn btn-primary admin-only" onclick="openModal('create-tournament-modal')" style="width: 100%; justify-content: center;">
+                    <i class="fa-solid fa-plus"></i> Crear Torneo
+                </button>
+                <button class="btn btn-secondary" onclick="logout()" style="width: 100%; justify-content: center; margin-top: 1rem; background: #fee2e2; color: #991b1b; border: 1px solid #fecaca;">
+                    <i class="fa-solid fa-right-from-bracket"></i> Cerrar Sesión
+                </button>
+            </div>
         </aside>
 
         <!-- Main Content -->
@@ -41,7 +116,7 @@
             <section id="dashboard-view" class="view active">
                 <header class="view-header">
                     <h2>Panel de Control Avanzado</h2>
-                    <button class="btn btn-primary btn-large" onclick="openModal('create-tournament-modal')">
+                    <button class="btn btn-primary btn-large admin-only" onclick="openModal('create-tournament-modal')">
                         <i class="fa-solid fa-plus-circle"></i> Crear Nuevo Campeonato
                     </button>
                 </header>
@@ -73,7 +148,7 @@
 
                 <div class="mt-4">
                     <h3>Próximos Torneos</h3>
-                    <div id="recent-tournaments-list" class="mt-2" style="display:grid; gap: 1rem;">
+                    <div id="recent-tournaments-list" class="mt-2" style="display:grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 1.5rem;">
                         <!-- Populated via JS -->
                     </div>
                 </div>
@@ -83,7 +158,7 @@
             <section id="tournaments-view" class="view">
                 <header class="view-header">
                     <h2>Mis Torneos</h2>
-                    <button class="btn btn-primary" onclick="openModal('create-tournament-modal')">
+                    <button class="btn btn-primary admin-only" onclick="openModal('create-tournament-modal')">
                         <i class="fa-solid fa-plus"></i> Nuevo Campeonato
                     </button>
                 </header>
@@ -170,7 +245,54 @@
                 </div>
             </section>
 
-            <!-- B. PLAYER PORTAL VIEW -->
+            <!-- USERS MANAGEMENT VIEW -->
+            <section id="users-view" class="view">
+                <header class="view-header">
+                    <h2>Base de Datos de Usuarios</h2>
+                    <p>Administra el ELO y los roles de todos los participantes registrados.</p>
+                </header>
+                <div class="card mt-4">
+                    <table class="data-table" id="global-users-table">
+                        <thead>
+                            <tr>
+                                <th>Usuario</th>
+                                <th>Email</th>
+                                <th>ELO Actual</th>
+                                <th>Rol</th>
+                                <th>Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <!-- Populated via JS -->
+                        </tbody>
+                    </table>
+                </div>
+                </div>
+            </section>
+
+            <!-- RANKING VIEW -->
+            <section id="ranking-view" class="view">
+                <header class="view-header">
+                    <h2>Ranking Global de Maestros</h2>
+                    <p>Clasificación general basada en el ELO Rating de todos los miembros.</p>
+                </header>
+                <div class="card mt-4" style="padding: 0;">
+                    <table class="data-table" id="global-ranking-table">
+                        <thead>
+                            <tr>
+                                <th style="width: 80px;">Posición</th>
+                                <th>Nombre del Usuario</th>
+                                <th>Rol / Rango</th>
+                                <th style="text-align: right;">ELO Rating</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <!-- Populated via JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
             <section id="player-view" class="view">
                 <header class="view-header" style="border-bottom: none; margin-bottom:0;">
                     <h2>Hola, <span class="text-primary">Magnus Carlsen</span></h2>
@@ -287,7 +409,67 @@
         </div>
     </div>
 
-    <script src="js/api.js"></script>
-    <script src="js/app.js"></script>
+    <!-- EDIT TOURNAMENT MODAL -->
+    <div class="modal-overlay" id="edit-tournament-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Editar Torneo</h2>
+                <button class="close-btn" onclick="closeModal('edit-tournament-modal')">&times;</button>
+            </div>
+            <form id="form-edit-tournament">
+                <input type="hidden" id="edit-t-id">
+                <div class="form-group">
+                    <label>Nombre del Torneo</label>
+                    <input type="text" class="form-control" id="edit-t-name" required>
+                </div>
+                <div class="form-group">
+                    <label>Ubicación</label>
+                    <input type="text" class="form-control" id="edit-t-location">
+                </div>
+                <div class="form-group">
+                    <label>Descripción</label>
+                    <textarea class="form-control" id="edit-t-desc" rows="3"></textarea>
+                </div>
+                <button type="submit" class="btn btn-primary" style="width: 100%; justify-content: center;">Guardar Cambios</button>
+            </form>
+        </div>
+    </div>
+    <div class="modal-overlay" id="player-stats-modal">
+        <div class="modal-content" style="max-width: 500px;">
+            <div class="modal-header" style="border-bottom: 1px solid var(--border-color); padding-bottom: 1rem;">
+                <h2 id="stats-player-name" style="color: var(--primary-color); display:flex; align-items:center; gap:0.5rem;"><i class="fa-solid fa-user-astronaut"></i> Jugador</h2>
+                <button class="close-btn" onclick="closeModal('player-stats-modal')">&times;</button>
+            </div>
+            <div style="margin-top: 1.5rem;">
+                <div style="display:flex; justify-content: space-between; margin-bottom:1rem; padding: 1rem; background: var(--surface-card); border-radius:8px;">
+                    <div style="text-align:center;">
+                        <span style="display:block; font-size:2rem; font-weight:700; color:var(--accent-color)" id="stats-player-elo">1200</span>
+                        <span style="font-size:0.85rem; color:var(--text-muted)">ELO Rating</span>
+                    </div>
+                    <div style="text-align:center;">
+                        <span style="display:block; font-size:2rem; font-weight:700; color:var(--text-main)" id="stats-player-points">0.0</span>
+                        <span style="font-size:0.85rem; color:var(--text-muted)">Puntos Torneo</span>
+                    </div>
+                </div>
+                
+                <h4 style="margin-bottom:0.5rem; border-bottom:1px solid #eee; padding-bottom:0.3rem;">Desempeño</h4>
+                <div style="display:flex; gap:1rem; margin-bottom:1.5rem;">
+                    <div style="flex:1; background:#f0fdf4; color:#166534; padding:0.8rem; border-radius:6px; text-align:center;">
+                        <i class="fa-solid fa-trophy"></i> Victorias <br><strong id="stats-player-wins" style="font-size:1.2rem;">0</strong>
+                    </div>
+                    <div style="flex:1; background:#f8fafc; color:#475569; padding:0.8rem; border-radius:6px; text-align:center;">
+                        <i class="fa-solid fa-handshake"></i> Empates <br><strong id="stats-player-draws" style="font-size:1.2rem;">0</strong>
+                    </div>
+                    <div style="flex:1; background:#fef2f2; color:#991b1b; padding:0.8rem; border-radius:6px; text-align:center;">
+                        <i class="fa-solid fa-xmark"></i> Derrotas <br><strong id="stats-player-losses" style="font-size:1.2rem;">0</strong>
+                    </div>
+                </div>
+            </div>
+            <button class="btn btn-secondary" style="width:100%; justify-content:center;" onclick="closeModal('player-stats-modal')">Cerrar</button>
+        </div>
+    </div>
+
+    <script src="js/api.js?v=202604232145"></script>
+    <script src="js/app.js?v=202604232145"></script>
 </body>
 </html>
