@@ -34,7 +34,14 @@ public class UsuarioController {
         return usuarioRepository.findById(id).map(u -> {
             if(body.containsKey("email")) u.setEmail((String) body.get("email"));
             if(body.containsKey("biografia")) u.setBiografia((String) body.get("biografia"));
-            if(body.containsKey("eloRating")) u.setEloRating(Integer.parseInt(body.get("eloRating").toString()));
+            if(body.containsKey("eloRating")) {
+                int elo = Integer.parseInt(body.get("eloRating").toString());
+                if(elo >= 0 && elo <= 4000) {
+                    u.setEloRating(elo);
+                } else {
+                    throw new IllegalArgumentException("El ELO debe estar entre 0 y 4000");
+                }
+            }
             if(body.containsKey("role")) u.setRole((String) body.get("role"));
             
             return ResponseEntity.ok(usuarioRepository.save(u));

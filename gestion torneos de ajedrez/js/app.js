@@ -57,6 +57,7 @@ function initNavigation() {
             if(target === 'dashboard-view') renderDashboard();
             if(target === 'tournaments-view') renderTournamentList();
             if(target === 'users-view') renderUsers();
+            if(target === 'ranking-view') renderGlobalRanking();
         });
     });
 
@@ -123,9 +124,18 @@ function initForms() {
             errorDiv.style.display = 'none';
             const user = document.getElementById('login-user').value;
             const pass = document.getElementById('login-pass').value;
-            const res = await API.login(user, pass);
-            if (res) {
-                localStorage.setItem('currentUser', JSON.stringify(res));
+            const recaptchaToken = grecaptcha.getResponse(0); // 0 es el primer widget (login)
+            
+            if(!recaptchaToken) {
+                errorDiv.textContent = 'Por favor, marca la casilla "No soy un robot"';
+                errorDiv.style.display = 'block';
+                return;
+            }
+            
+            const res = await API.login(user, pass, recaptchaToken);
+            if (res && res.token) {
+                localStorage.setItem('jwt_token', res.token);
+                localStorage.setItem('currentUser', JSON.stringify(res.usuario));
                 // Force check and UI update
                 checkAuthStatus(); 
                 renderDashboard();
@@ -143,9 +153,17 @@ function initForms() {
             const user = document.getElementById('reg-user').value;
             const email = document.getElementById('reg-email').value;
             const pass = document.getElementById('reg-pass').value;
+            const elo = parseInt(document.getElementById('reg-elo').value) || 1200;
+            const recaptchaToken = grecaptcha.getResponse(1); // 1 es el segundo widget (register)
+            
+            if(!recaptchaToken) {
+                errorDiv.textContent = 'Por favor, marca la casilla "No soy un robot"';
+                errorDiv.style.display = 'block';
+                return;
+            }
             
             // All new registrations from management are ADMIN
-            const res = await API.register(user, pass, email, 'ADMIN'); 
+            const res = await API.register(user, pass, email, 'ADMIN', elo, recaptchaToken); 
             
             if (res) {
                 alert("Cuenta creada con éxito. Ya puedes iniciar sesión.");
@@ -184,12 +202,17 @@ function initForms() {
             e.preventDefault();
             if(!currentTournamentId) return;
             const nombre = document.getElementById('form-p-name').value;
-            const elo = document.getElementById('form-p-elo').value;
+            const elo = parseInt(document.getElementById('form-p-elo').value) || 1200;
             
-            await fetch(`${window.API_BASE}/torneos/${currentTournamentId}/inscripciones`, {
+            if (elo < 0 || elo > 4000) {
+                alert("Error: El ELO debe estar entre 0 y 4000.");
+                return;
+            }
+            
+            await fetchWithAuth(`${window.API_BASE}/torneos/${currentTournamentId}/inscripciones`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ nombre, elo: elo || 1200 })
+                body: JSON.stringify({ nombre, elo })
             }).catch(err => {
                 console.error("Error inscripciones:", err);
                 alert("Error: no se pudo conectar con el servidor.");
@@ -211,7 +234,7 @@ function initForms() {
             const ubicacion = document.getElementById('edit-t-location').value;
             const descripcion = document.getElementById('edit-t-desc').value;
             
-            await fetch(`${window.API_BASE}/torneos/${id}`, {
+            await fetchWithAuth(`${window.API_BASE}/torneos/${id}`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ nombre, ubicacion, descripcion })
@@ -239,7 +262,7 @@ async function renderDashboard() {
 
     for (const t of tournaments) {
         try {
-            const inscRes = await fetch(`${window.API_BASE}/torneos/${t.id}/inscripciones`);
+            const inscRes = await fetchWithAuth(`${window.API_BASE}/torneos/${t.id}/inscripciones`);
             const insc = await inscRes.json();
             if(insc) totalP += insc.length;
 
@@ -261,14 +284,61 @@ async function renderDashboard() {
     const recent = [...tournaments].reverse().slice(0, 4);
     if(recent.length === 0) recentList.innerHTML = '<p class="text-muted">No hay torneos próximos.</p>';
     else recent.forEach(t => recentList.appendChild(createTournamentUIItem(t)));
+
+    // Ranking Global
+    renderGlobalRanking();
+}
+
+async function renderGlobalRanking() {
+    const users = await API.getUsuarios();
+    const tbody = document.querySelector('#global-ranking-table tbody');
+    if(!tbody) return;
+    
+    tbody.innerHTML = '';
+    
+    // Ordenar por ELO descendente
+    const sortedUsers = [...users].sort((a, b) => (b.eloRating || 0) - (a.eloRating || 0));
+    
+    sortedUsers.forEach((u, index) => {
+        const tr = document.createElement('tr');
+        // Asignar colores/estilos según posición
+        let posStyle = '';
+        if(index === 0) posStyle = 'color: #d4af37; font-weight: bold; font-size: 1.2rem;'; // Oro
+        else if(index === 1) posStyle = 'color: #c0c0c0; font-weight: bold;'; // Plata
+        else if(index === 2) posStyle = 'color: #cd7f32; font-weight: bold;'; // Bronce
+
+        const roleIcon = u.role === 'ADMIN' ? '<i class="fa-solid fa-crown" title="Administrador" style="color:#d4af37; margin-right:5px;"></i>' : '<i class="fa-solid fa-chess-pawn" style="color:var(--text-muted); margin-right:5px;"></i>';
+        const roleLabel = u.role === 'ADMIN' ? 'Gran Maestro (Admin)' : 'Jugador';
+
+        tr.innerHTML = `
+            <td style="${posStyle}">#${index + 1}</td>
+            <td style="font-weight:600;">${u.username}</td>
+            <td>${roleIcon} ${roleLabel}</td>
+            <td style="text-align: right; font-weight: 800; color: #8b5a2b; font-size: 1.1rem;">${u.eloRating || 1200}</td>
+        `;
+        tbody.appendChild(tr);
+    });
 }
 
 async function renderTournamentList() {
     const tList = await API.getTorneos();
     const lc = document.getElementById('all-tournaments-list');
     lc.innerHTML = '';
-    if(!tList || tList.length === 0) lc.innerHTML = '<p class="text-muted mt-4">Lista vacía.</p>';
-    else [...tList].reverse().forEach(t => lc.appendChild(createTournamentUIItem(t)));
+    
+    // Filtrar para que el administrador solo vea los suyos
+    const currentUser = JSON.parse(localStorage.getItem('currentUser') || '{}');
+    const isAdmin = currentUser.role === 'ADMIN';
+    
+    let misTorneos = tList;
+    if (isAdmin) {
+        misTorneos = tList.filter(t => t.organizador && t.organizador.id === currentUser.id);
+    }
+    
+    if(!misTorneos || misTorneos.length === 0) {
+        lc.innerHTML = '<p class="text-muted mt-4">Lista vacía. Crea un torneo para comenzar.</p>';
+    } else {
+        [...misTorneos].reverse().forEach(t => lc.appendChild(createTournamentUIItem(t)));
+    }
 }
 
 function createTournamentUIItem(t) {
@@ -322,7 +392,7 @@ async function renderTournamentDetail(id) {
     sBadge.textContent = sLabel;
 
     // Get inscriptions to check player count
-    const inscRes = await fetch(`${window.API_BASE}/torneos/${id}/inscripciones`);
+    const inscRes = await fetchWithAuth(`${window.API_BASE}/torneos/${id}/inscripciones`);
     const inscripciones = await inscRes.json();
 
     const btnGenRounds = document.getElementById('btn-generate-rounds');
@@ -415,6 +485,7 @@ window.openPlayerStats = function(insId, userId, username, elo, points, wins, dr
 
 window.logout = function() {
     localStorage.removeItem('currentUser');
+    localStorage.removeItem('jwt_token');
     location.reload(); // Refresh to clear all state and show login
 };
 
@@ -438,7 +509,7 @@ window.deleteTournament = async function(tId) {
 window.finishTournament = async function(tId) {
     if(!confirm('¿Estás seguro de que deseas finalizar este torneo? Los resultados serán definitivos.')) return;
     try {
-        const response = await fetch(`${window.API_BASE}/torneos/${tId}/finalizar`, { 
+        const response = await fetchWithAuth(`${window.API_BASE}/torneos/${tId}/finalizar`, { 
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' }
         });
@@ -460,7 +531,7 @@ window.finishTournament = async function(tId) {
 // Simplified result handling for the new API
 window.handleResultChange = async function(partidaId, value, tId) {
     if(!value) return; 
-    await fetch(`${window.API_BASE}/partidas/${partidaId}/resultado`, {
+    await fetchWithAuth(`${window.API_BASE}/partidas/${partidaId}/resultado`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ resultado: value })
@@ -568,7 +639,7 @@ window.openEditTournamentModal = function(t) {
 };
 
 async function renderUsers() {
-    const res = await fetch(`${window.API_BASE}/usuarios`);
+    const res = await fetchWithAuth(`${window.API_BASE}/usuarios`);
     const users = await res.json();
     const tbody = document.querySelector('#global-users-table tbody');
     tbody.innerHTML = '';
@@ -578,7 +649,7 @@ async function renderUsers() {
         tr.innerHTML = `
             <td><strong>${u.username}</strong></td>
             <td>${u.email}</td>
-            <td><input type="number" value="${u.eloRating}" class="form-control" style="width:80px" onchange="updateUserElo(${u.id}, this.value)"></td>
+            <td><input type="number" value="${u.eloRating}" min="0" max="4000" class="form-control" style="width:80px" onchange="updateUserElo(${u.id}, this.value)"></td>
             <td><span class="status-badge ${u.role === 'ADMIN' ? 'status-active' : ''}">${u.role}</span></td>
             <td>
                 <button class="btn btn-danger btn-sm" onclick="deleteUser(${u.id})"><i class="fa-solid fa-trash"></i></button>
@@ -589,17 +660,22 @@ async function renderUsers() {
 }
 
 window.updateUserElo = async function(id, elo) {
-    await fetch(`http://localhost:8080/api/usuarios/${id}`, {
+    if (elo < 0 || elo > 4000) {
+        alert("Error: El ELO debe estar entre 0 y 4000.");
+        renderUsers(); // Revertir el valor en la UI
+        return;
+    }
+    await fetchWithAuth(`${window.API_BASE}/usuarios/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ eloRating: elo })
-    });
+    }).catch(e => alert("Error al actualizar ELO"));
     alert("ELO actualizado con éxito");
     renderUsers();
 };
 
 window.deleteUser = async function(id) {
     if(!confirm('¿Estás seguro de eliminar a este usuario del sistema?')) return;
-    await fetch(`${window.API_BASE}/usuarios/${id}`, { method: 'DELETE' });
+    await fetchWithAuth(`${window.API_BASE}/usuarios/${id}`, { method: 'DELETE' });
     renderUsers();
 };

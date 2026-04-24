@@ -42,7 +42,11 @@ public class TorneoController {
     }
 
     @PostMapping
-    public Torneo crearTorneo(@RequestBody Torneo torneo) {
+    public Torneo crearTorneo(@RequestBody Torneo torneo, org.springframework.security.core.Authentication authentication) {
+        if (authentication != null && authentication.getName() != null) {
+            Usuario u = usuarioRepository.findByUsername(authentication.getName()).orElse(null);
+            torneo.setOrganizador(u);
+        }
         return torneoRepository.save(torneo);
     }
 
@@ -83,14 +87,37 @@ public class TorneoController {
         String eloStr = String.valueOf(body.get("elo"));
         Integer elo = 1200;
         try { elo = Integer.parseInt(eloStr); } catch(Exception e) {}
+        
+        if(elo < 0 || elo > 4000) {
+            return ResponseEntity.badRequest().body("El ELO debe estar entre 0 y 4000");
+        }
 
         // Create or find user
-        Usuario u = new Usuario();
-        u.setUsername(nombre.toLowerCase().replace(" ", ".") + "." + System.currentTimeMillis());
-        u.setEmail(u.getUsername() + "@chess.com");
-        u.setPasswordHash("1234");
-        u.setEloRating(elo);
-        u = usuarioRepository.save(u);
+        String formattedUsername = nombre.trim();
+        Usuario u = usuarioRepository.findByUsername(formattedUsername).orElse(null);
+        
+        if (u == null) {
+            u = new Usuario();
+            u.setUsername(formattedUsername);
+            u.setEmail(formattedUsername.toLowerCase().replace(" ", "") + "@chess.com");
+            u.setPasswordHash("1234");
+            u.setEloRating(elo);
+            u = usuarioRepository.save(u);
+        } else {
+            // Solución al error de compilación: Usar una variable final para la lambda
+            final Long userId = u.getId();
+            boolean yaInscrito = inscripcionRepository.findByTorneoId(id).stream()
+                    .anyMatch(ins -> ins.getUsuario().getId().equals(userId));
+            
+            if (yaInscrito) {
+                return ResponseEntity.badRequest().body("El jugador ya está inscrito en este torneo.");
+            }
+            
+            if (!u.getEloRating().equals(elo)) {
+                u.setEloRating(elo);
+                usuarioRepository.save(u);
+            }
+        }
 
         Inscripcion inscripcion = new Inscripcion();
         inscripcion.setTorneo(torneo);

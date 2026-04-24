@@ -1,0 +1,8 @@
+jdk17.msi
+jdk17-openlogic.msi
+desktop.ini
+*.msi
+target/
+.idea/
+*.class
+*.log

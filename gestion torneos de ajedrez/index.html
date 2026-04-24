@@ -9,6 +9,8 @@
     <!-- FontAwesome for icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="css/styles.css">
+    <!-- Google reCAPTCHA v2 -->
+    <script src="https://www.google.com/recaptcha/api.js" async defer></script>
 </head>
 <body>
     <!-- LOGIN OVERLAY -->
@@ -27,6 +29,7 @@
                     <label style="display:block; margin-bottom:0.5rem; font-weight:500; color:#4a3018;">Contraseña</label>
                     <input type="password" id="login-pass" class="form-control" required style="width:100%; padding:0.75rem; border:1px solid #c8a98c; border-radius:4px; background:#fffbf7;">
                 </div>
+                <div class="g-recaptcha" data-sitekey="6Le-KccsAAAAAM7dNenOory_rC3Jv09Vc0jg5NXu" style="margin-bottom:1rem; display:flex; justify-content:center;"></div>
                 <button type="submit" class="btn" style="width:100%; justify-content:center; padding:1rem; background:#8b5a2b; color:white; border:none; border-radius:4px; font-weight:bold; cursor:pointer;">Entrar</button>
             </form>
             
@@ -39,10 +42,15 @@
                     <label style="display:block; margin-bottom:0.5rem; font-weight:500; color:#4a3018;">Correo Electrónico</label>
                     <input type="email" id="reg-email" class="form-control" required style="width:100%; padding:0.75rem; border:1px solid #c8a98c; border-radius:4px; background:#fffbf7;">
                 </div>
-                <div class="form-group" style="text-align: left; margin-bottom: 1.5rem;">
+                <div class="form-group" style="text-align: left; margin-bottom: 1rem;">
                     <label style="display:block; margin-bottom:0.5rem; font-weight:500; color:#4a3018;">Contraseña</label>
                     <input type="password" id="reg-pass" class="form-control" required style="width:100%; padding:0.75rem; border:1px solid #c8a98c; border-radius:4px; background:#fffbf7;">
                 </div>
+                <div class="form-group" style="text-align: left; margin-bottom: 1.5rem;">
+                    <label style="display:block; margin-bottom:0.5rem; font-weight:500; color:#4a3018;">ELO (Opcional, defecto 1200)</label>
+                    <input type="number" id="reg-elo" class="form-control" min="0" max="4000" style="width:100%; padding:0.75rem; border:1px solid #c8a98c; border-radius:4px; background:#fffbf7;" placeholder="1200">
+                </div>
+                <div class="g-recaptcha" data-sitekey="6Le-KccsAAAAAM7dNenOory_rC3Jv09Vc0jg5NXu" style="margin-bottom:1rem; display:flex; justify-content:center;"></div>
                 <!-- Roles hidden for simplicity as requested -->
                 <input type="hidden" id="reg-role" value="ADMIN">
                 <button type="submit" class="btn" style="width:100%; justify-content:center; padding:1rem; background:#8b5a2b; color:white; border:none; border-radius:4px; font-weight:bold; cursor:pointer;">Crear Cuenta</button>
@@ -87,8 +95,8 @@
                     <i class="fa-solid fa-users-gear"></i> Gestión de Usuarios
                 </button>
                 <div class="nav-section-title">PORTAL JUGADOR</div>
-                <button class="nav-btn" data-target="dashboard-view">
-                    <i class="fa-solid fa-ranking-star"></i> Posiciones
+                <button class="nav-btn" data-target="ranking-view">
+                    <i class="fa-solid fa-ranking-star"></i> Ranking Global
                 </button>
             </nav>
             <div style="padding: 1.5rem; margin-top: auto;">
@@ -140,7 +148,7 @@
 
                 <div class="mt-4">
                     <h3>Próximos Torneos</h3>
-                    <div id="recent-tournaments-list" class="mt-2" style="display:grid; gap: 1rem;">
+                    <div id="recent-tournaments-list" class="mt-2" style="display:grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 1.5rem;">
                         <!-- Populated via JS -->
                     </div>
                 </div>
@@ -259,7 +267,32 @@
                         </tbody>
                     </table>
                 </div>
+                </div>
             </section>
+
+            <!-- RANKING VIEW -->
+            <section id="ranking-view" class="view">
+                <header class="view-header">
+                    <h2>Ranking Global de Maestros</h2>
+                    <p>Clasificación general basada en el ELO Rating de todos los miembros.</p>
+                </header>
+                <div class="card mt-4" style="padding: 0;">
+                    <table class="data-table" id="global-ranking-table">
+                        <thead>
+                            <tr>
+                                <th style="width: 80px;">Posición</th>
+                                <th>Nombre del Usuario</th>
+                                <th>Rol / Rango</th>
+                                <th style="text-align: right;">ELO Rating</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <!-- Populated via JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
             <section id="player-view" class="view">
                 <header class="view-header" style="border-bottom: none; margin-bottom:0;">
                     <h2>Hola, <span class="text-primary">Magnus Carlsen</span></h2>
