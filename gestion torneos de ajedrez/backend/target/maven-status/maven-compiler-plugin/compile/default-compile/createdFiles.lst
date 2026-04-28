@@ -10,8 +10,10 @@ com\ajedrez\controllers\UsuarioController.class
 com\ajedrez\services\EmparejamientoService.class
 com\ajedrez\repositories\TorneoRepository.class
 com\ajedrez\security\JwtFilter.class
+com\ajedrez\services\EmailService.class
 com\ajedrez\models\Partida.class
 com\ajedrez\controllers\AuthController.class
+com\ajedrez\security\WebSocketConfig.class
 com\ajedrez\repositories\UsuarioRepository.class
 com\ajedrez\services\RecaptchaService.class
 com\ajedrez\repositories\InscripcionRepository.class

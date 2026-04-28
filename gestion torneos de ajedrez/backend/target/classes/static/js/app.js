@@ -139,6 +139,7 @@ function initForms() {
                 localStorage.setItem('currentUser', JSON.stringify(res.usuario));
                 // Force check and UI update
                 checkAuthStatus(); 
+                connectWebSocket();
                 renderDashboard();
             } else {
                 errorDiv.textContent = 'Credenciales inválidas o error de red';
@@ -527,11 +528,33 @@ async function renderTournamentDetail(id) {
     const inscRes = await fetchWithAuth(`${window.API_BASE}/torneos/${id}/inscripciones`);
     const inscripciones = await inscRes.json();
 
+    const partidas = await API.getPartidas(id);
+
     const btnGenRounds = document.getElementById('btn-generate-rounds');
-    if(t.estado === 'PENDIENTE' && inscripciones.length >= 2) {
-        btnGenRounds.classList.remove('hidden');
+    btnGenRounds.classList.add('hidden'); // Ocultar por defecto
+
+    if (t.sistemaJuego === 'SUIZO') {
+        btnGenRounds.innerHTML = '<i class="fa-solid fa-bolt"></i> Generar Siguiente Ronda';
+        if (t.estado === 'PENDIENTE' && inscripciones.length >= 2) {
+            btnGenRounds.classList.remove('hidden');
+        } else if (t.estado === 'EN_CURSO') {
+            const pendingMatches = partidas.filter(p => p.resultado === 'P' || !p.resultado);
+            if (pendingMatches.length === 0 && partidas.length > 0) {
+                // Check if max rounds reached
+                const maxRondas = inscripciones.length % 2 === 0 ? inscripciones.length - 1 : inscripciones.length;
+                let currentMaxRound = 0;
+                partidas.forEach(p => { if(p.rondaNumero > currentMaxRound) currentMaxRound = p.rondaNumero; });
+                
+                if (currentMaxRound < maxRondas) {
+                    btnGenRounds.classList.remove('hidden');
+                }
+            }
+        }
     } else {
-        btnGenRounds.classList.add('hidden');
+        btnGenRounds.innerHTML = '<i class="fa-solid fa-bolt"></i> Generar Rondas Automáticamente';
+        if(t.estado === 'PENDIENTE' && inscripciones.length >= 2) {
+            btnGenRounds.classList.remove('hidden');
+        }
     }
 
     const actionsContainer = document.getElementById('detail-t-actions');
@@ -580,7 +603,6 @@ async function renderTournamentDetail(id) {
     }
 
     renderPlayers(inscripciones, t.estado);
-    const partidas = await API.getPartidas(id);
     renderRounds(partidas, t.estado, id);
     renderStandings(inscripciones, t.estado);
 }
@@ -742,9 +764,13 @@ function renderRounds(partidas, estado, tId) {
 function renderStandings(inscripciones, estado) {
     const tbody = document.querySelector('#standings-table tbody');
     tbody.innerHTML = '';
-    if(estado === 'PENDIENTE') { tbody.innerHTML = '<tr><td colspan="5" class="text-center">El torneo no ha iniciado.</td></tr>'; return;}
+    if(estado === 'PENDIENTE') { tbody.innerHTML = '<tr><td colspan="6" class="text-center">El torneo no ha iniciado.</td></tr>'; return;}
     
-    const sortedInscripciones = [...inscripciones].sort((a, b) => b.puntosAcumulados - a.puntosAcumulados);
+    const sortedInscripciones = [...inscripciones].sort((a, b) => {
+        if(b.puntosAcumulados !== a.puntosAcumulados) return b.puntosAcumulados - a.puntosAcumulados;
+        if(b.buchholz !== a.buchholz) return b.buchholz - a.buchholz;
+        return b.sonnebornBerger - a.sonnebornBerger;
+    });
     
     sortedInscripciones.forEach((ins, index) => {
         const row = document.createElement('tr');
@@ -768,8 +794,9 @@ function renderStandings(inscripciones, estado) {
             <td style="${posStyle}">${posContent}</td>
             <td style="font-weight:600; color:var(--primary-color)">${ins.usuario.username}</td>
             <td style="font-weight:bold; font-size:1.2rem; color:var(--accent-color)">${ins.puntosAcumulados || 0.0}</td>
+            <td>${ins.buchholz || 0.0}</td>
+            <td>${ins.sonnebornBerger || 0.0}</td>
             <td>${ins.partidasJugadas || 0}</td>
-            <td>${ins.victorias || 0}</td>
         `;
         tbody.appendChild(row);
     });
@@ -857,3 +884,76 @@ window.deleteUser = async function(id) {
     await fetchWithAuth(`${window.API_BASE}/usuarios/${id}`, { method: 'DELETE' });
     renderUsers();
 };
+
+// --- WebSockets & Notifications ---
+let stompClient = null;
+
+function connectWebSocket() {
+    const socket = new SockJS('http://localhost:8080/ws-chess');
+    stompClient = Stomp.over(socket);
+    stompClient.debug = null; // Disable console spam
+
+    stompClient.connect({}, function (frame) {
+        console.log('WebSocket Conectado: ' + frame);
+        stompClient.subscribe('/topic/notifications', function (notification) {
+            showNotification(notification.body);
+            // Si el admin está viendo el dashboard o detalle, refrescar
+            if (document.getElementById('dashboard-view').classList.contains('active')) renderDashboard();
+            if (document.getElementById('tournament-detail-view').classList.contains('active')) renderTournamentDetail(currentTournamentId);
+        });
+    }, function(error) {
+        console.log('Error WebSocket, reintentando en 5s...');
+        setTimeout(connectWebSocket, 5000);
+    });
+}
+
+function showNotification(message) {
+    const container = document.getElementById('notification-container');
+    const toast = document.createElement('div');
+    toast.className = 'card';
+    toast.style.cssText = `
+        background: var(--primary-color);
+        color: white;
+        padding: 1rem 1.5rem;
+        border-radius: 8px;
+        box-shadow: var(--shadow-heavy);
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        min-width: 300px;
+        animation: slideIn 0.5s ease forwards;
+        border-left: 5px solid var(--accent-color);
+    `;
+    
+    toast.innerHTML = `
+        <i class="fa-solid fa-bell" style="font-size: 1.5rem; color: var(--accent-color);"></i>
+        <div>
+            <strong style="display:block; font-size:0.9rem; opacity:0.8;">Aviso del Sistema</strong>
+            <span>${message}</span>
+        </div>
+    `;
+
+    container.appendChild(toast);
+
+    // Auto-remove after 5 seconds
+    setTimeout(() => {
+        toast.style.animation = 'fadeOut 0.5s ease forwards';
+        setTimeout(() => toast.remove(), 500);
+    }, 5000);
+}
+
+// Add animations for notifications if not in CSS
+if (!document.getElementById('notif-styles')) {
+    const style = document.createElement('style');
+    style.id = 'notif-styles';
+    style.innerHTML = `
+        @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+        @keyframes fadeOut { from { transform: translateX(0); opacity: 1; } to { transform: translateX(100%); opacity: 0; } }
+    `;
+    document.head.appendChild(style);
+}
+
+// Initialize on load
+if (localStorage.getItem('jwt_token')) {
+    connectWebSocket();
+}

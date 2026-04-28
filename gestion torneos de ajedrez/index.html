@@ -11,8 +11,14 @@
     <link rel="stylesheet" href="css/styles.css">
     <!-- Google reCAPTCHA v2 -->
     <script src="https://www.google.com/recaptcha/api.js" async defer></script>
+    <!-- WebSockets -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/sockjs-client/1.6.1/sockjs.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/stomp.js/2.3.3/stomp.min.js"></script>
 </head>
 <body>
+    <!-- NOTIFICATION TOAST -->
+    <div id="notification-container" style="position: fixed; top: 20px; right: 20px; z-index: 10000; display: flex; flex-direction: column; gap: 10px;"></div>
+
     <!-- LOGIN OVERLAY -->
     <div id="login-overlay" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:url('img/bg-chess.png') no-repeat center center; background-size: cover; z-index:9999; justify-content:center; align-items:center;">
         <div style="position:absolute; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.4); backdrop-filter: blur(5px);"></div>
@@ -237,8 +243,9 @@
                                     <th>Posición</th>
                                     <th>Jugador</th>
                                     <th>Puntos</th>
-                                    <th>Partidas Jugadas</th>
-                                    <th>Victorias</th>
+                                    <th>Buchholz</th>
+                                    <th>SB</th>
+                                    <th>PJ</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -413,6 +420,13 @@
                     <label>Nombre del Torneo</label>
                     <input type="text" class="form-control" id="form-t-name" required placeholder="Ej: Open de Primavera">
                 </div>
+                <div class="form-group">
+                    <label>Sistema de Juego</label>
+                    <select class="form-control" id="form-t-sistema">
+                        <option value="ROUND_ROBIN">&#9827; Round Robin (todos contra todos)</option>
+                        <option value="SUIZO">&#9820; Sistema Suizo</option>
+                    </select>
+                </div>
                 <button type="submit" class="btn btn-primary btn-large" style="width: 100%; justify-content: center;">Confirmar Creación</button>
             </form>
         </div>
@@ -520,6 +534,13 @@
                     <input type="text" class="form-control" id="edit-t-name" required>
                 </div>
                 <div class="form-group">
+                    <label>Sistema de Juego</label>
+                    <select class="form-control" id="edit-t-sistema">
+                        <option value="ROUND_ROBIN">&#9827; Round Robin (todos contra todos)</option>
+                        <option value="SUIZO">&#9820; Sistema Suizo</option>
+                    </select>
+                </div>
+                <div class="form-group">
                     <label>Ubicación</label>
                     <input type="text" class="form-control" id="edit-t-location">
                 </div>
@@ -566,7 +587,7 @@
         </div>
     </div>
 
-    <script src="js/api.js?v=20260428-10"></script>
-    <script src="js/app.js?v=20260428-10"></script>
+    <script src="js/api.js?v=20260428-12"></script>
+    <script src="js/app.js?v=20260428-12"></script>
 </body>
 </html>

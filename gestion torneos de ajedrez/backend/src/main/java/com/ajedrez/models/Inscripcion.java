@@ -54,4 +54,16 @@ public class Inscripcion {
     public void setEmpates(Integer empates) { this.empates = empates; }
     public Integer getDerrotas() { return derrotas; }
     public void setDerrotas(Integer derrotas) { this.derrotas = derrotas; }
+
+    @Column(name = "buchholz")
+    private Double buchholz = 0.0;
+
+    @Column(name = "sonneborn_berger")
+    private Double sonnebornBerger = 0.0;
+
+    public Double getBuchholz() { return buchholz; }
+    public void setBuchholz(Double buchholz) { this.buchholz = buchholz; }
+
+    public Double getSonnebornBerger() { return sonnebornBerger; }
+    public void setSonnebornBerger(Double sonnebornBerger) { this.sonnebornBerger = sonnebornBerger; }
 }

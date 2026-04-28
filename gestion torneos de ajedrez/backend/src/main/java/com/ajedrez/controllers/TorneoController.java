@@ -39,6 +39,12 @@ public class TorneoController {
     @Autowired
     private com.ajedrez.services.RecaptchaService recaptchaService;
 
+    @Autowired
+    private com.ajedrez.services.EmailService emailService;
+
+    @Autowired
+    private org.springframework.messaging.simp.SimpMessagingTemplate messagingTemplate;
+
     @GetMapping
     public List<Torneo> getAllTorneos() {
         return torneoRepository.findAll();
@@ -72,6 +78,9 @@ public class TorneoController {
         
         List<Inscripcion> inscritos = inscripcionRepository.findByTorneoId(id);
         List<Partida> partidas = emparejamientoService.generarRondas(torneo, inscritos);
+        
+        // Notificar a todos que se generaron rondas
+        messagingTemplate.convertAndSend("/topic/notifications", "¡Se han generado nuevas rondas en el torneo: " + torneo.getNombre() + "!");
         
         return ResponseEntity.ok(partidas);
     }
@@ -122,6 +131,11 @@ public class TorneoController {
             u.setEloRating(elo);
             u.setRole("PLAYER");
             u = usuarioRepository.save(u);
+            
+            // Enviar correo de bienvenida si se crea manual (cuando se provee recaptcha o pass)
+            if (body.containsKey("recaptchaToken")) {
+                emailService.sendWelcomeEmail(u.getEmail(), u.getUsername(), pass);
+            }
         } else {
             // Solución al error de compilación: Usar una variable final para la lambda
             final Long userId = u.getId();
