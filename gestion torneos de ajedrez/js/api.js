@@ -5,8 +5,10 @@
 
 // Configuración dinámica de la URL del servidor
 // Prioriza la conexión a Railway si estamos en la nube, de lo contrario usa el servidor local
-window.API_BASE = 'https://backend-lmeb-production.up.railway.app/api';
-const API_BASE = window.API_BASE;
+const API_BASE = (window.location.hostname.includes('railway.app') || window.location.hostname.includes('github.io'))
+    ? 'https://backend-lmeb-production.up.railway.app/api'
+    : 'http://localhost:8080/api';
+window.API_BASE = API_BASE;
 
 /**
  * Recupera el token de autenticación (JWT) guardado en el navegador.
