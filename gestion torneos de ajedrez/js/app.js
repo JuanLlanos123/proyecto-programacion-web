@@ -19,6 +19,21 @@ document.addEventListener('DOMContentLoaded', () => {
     renderTournamentList();
 });
 
+/**
+ * Alterna la visibilidad de la contraseña entre texto plano y asteriscos.
+ */
+window.togglePassword = function(inputId) {
+    const input = document.getElementById(inputId);
+    const btn = input.nextElementSibling;
+    if (input.type === "password") {
+        input.type = "text";
+        btn.innerHTML = "&#128064;"; // Ojo abierto
+    } else {
+        input.type = "password";
+        btn.innerHTML = "&#128065;"; // Ojo cerrado
+    }
+};
+
 function checkAuthStatus() {
     const userStr = localStorage.getItem('currentUser');
     if (!userStr) {

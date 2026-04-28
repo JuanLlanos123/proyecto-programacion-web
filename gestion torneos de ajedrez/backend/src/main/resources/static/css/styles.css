@@ -99,6 +99,28 @@ h1, h2, h3, h4 { font-family: var(--font-heading); color: var(--primary-color); 
 .form-control { width: 100%; padding: 0.8rem 1rem; border: 1px solid var(--accent-light); border-radius: var(--radius-btn); font-family: var(--font-ui); font-size: 1rem; background-color: var(--surface-color); }
 .form-control:focus { outline: none; border-color: var(--accent-color); box-shadow: 0 0 0 2px rgba(141, 110, 99, 0.2); }
 
+/* Password Toggle */
+.password-container {
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+.password-container .form-control {
+    padding-right: 3rem;
+}
+.toggle-password {
+    position: absolute;
+    right: 12px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 1.2rem;
+    color: var(--text-muted);
+    padding: 5px;
+    transition: color 0.2s;
+}
+.toggle-password:hover { color: var(--primary-color); }
+
 /* Badges & General */
 .tournament-item { display: flex; justify-content: space-between; align-items: center; background-color: var(--surface-card); padding: 1.5rem; border-radius: var(--radius-soft); box-shadow: var(--shadow-card); transition: transform 0.2s; }
 .tournament-item:hover { transform: translateY(-2px); box-shadow: var(--shadow-ambient); }
