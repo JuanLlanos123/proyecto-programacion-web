@@ -36,6 +36,9 @@ public class TorneoController {
     @Autowired
     private EmparejamientoService emparejamientoService;
 
+    @Autowired
+    private com.ajedrez.services.RecaptchaService recaptchaService;
+
     @GetMapping
     public List<Torneo> getAllTorneos() {
         return torneoRepository.findAll();
@@ -85,6 +88,13 @@ public class TorneoController {
 
         String nombre = body.get("nombre");
         String eloStr = String.valueOf(body.get("elo"));
+        String recaptchaToken = body.get("recaptchaToken");
+        
+        // Si se provee token (manual), verificarlo
+        if (recaptchaToken != null && !recaptchaService.verify(recaptchaToken)) {
+            return ResponseEntity.badRequest().body(Map.of("message", "reCAPTCHA inválido"));
+        }
+
         Integer elo = 1200;
         try { elo = Integer.parseInt(eloStr); } catch(Exception e) {}
         
@@ -99,9 +109,18 @@ public class TorneoController {
         if (u == null) {
             u = new Usuario();
             u.setUsername(formattedUsername);
-            u.setEmail(formattedUsername.toLowerCase().replace(" ", "") + "@chess.com");
-            u.setPasswordHash("1234");
+            String email = body.get("email");
+            if (email == null || email.trim().isEmpty()) {
+                email = formattedUsername.toLowerCase().replace(" ", "") + "@chess.com";
+            }
+            String pass = body.get("pass");
+            if (pass == null || pass.trim().isEmpty()) {
+                pass = "1234";
+            }
+            u.setEmail(email);
+            u.setPasswordHash(pass);
             u.setEloRating(elo);
+            u.setRole("PLAYER");
             u = usuarioRepository.save(u);
         } else {
             // Solución al error de compilación: Usar una variable final para la lambda

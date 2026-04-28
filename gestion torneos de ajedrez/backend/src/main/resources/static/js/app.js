@@ -57,6 +57,7 @@ function initNavigation() {
             if(target === 'dashboard-view') renderDashboard();
             if(target === 'tournaments-view') renderTournamentList();
             if(target === 'users-view') renderUsers();
+            if(target === 'players-view') renderPlayersView();
             if(target === 'ranking-view') renderGlobalRanking();
         });
     });
@@ -182,8 +183,18 @@ function initForms() {
     if (formCreate) {
         formCreate.addEventListener('submit', async (e) => {
             e.preventDefault();
+            const submitBtn = e.target.querySelector('button[type="submit"]');
+            if(submitBtn.disabled) return;
+            submitBtn.disabled = true;
+            const originalText = submitBtn.textContent;
+            submitBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Creando...';
+            
             const nombre = document.getElementById('form-t-name').value;
             const t = await API.createTorneo({ nombre, descripcion: "Torneo de Ajedrez", sistemaJuego: "ROUND_ROBIN" });
+            
+            submitBtn.disabled = false;
+            submitBtn.textContent = originalText;
+
             if(t) {
                 document.getElementById('form-t-name').value = '';
                 closeModal('create-tournament-modal');
@@ -201,11 +212,50 @@ function initForms() {
         formAddPlayer.addEventListener('submit', async (e) => {
             e.preventDefault();
             if(!currentTournamentId) return;
-            const nombre = document.getElementById('form-p-name').value;
-            const elo = parseInt(document.getElementById('form-p-elo').value) || 1200;
             
-            if (elo < 0 || elo > 4000) {
-                alert("Error: El ELO debe estar entre 0 y 4000.");
+            const mode = document.getElementById('add-player-mode').value;
+            let email = "";
+            let pass = "";
+
+            if (mode === 'existente') {
+                const selectedVal = document.getElementById('form-p-select').value;
+                if (!selectedVal) {
+                    alert("Por favor seleccione un jugador.");
+                    return;
+                }
+                const playerData = JSON.parse(selectedVal);
+                nombre = playerData.nombre;
+                elo = playerData.elo;
+            } else {
+                nombre = document.getElementById('form-p-name').value;
+                email = document.getElementById('form-p-email').value;
+                pass = "1234"; // Password default ya que no es necesaria en UI manual
+                elo = parseInt(document.getElementById('form-p-elo').value) || 1200;
+                
+                const recaptchaToken = grecaptcha.getResponse(3);
+                if (!nombre) {
+                    alert("Por favor escribe el Nombre del usuario.");
+                    return;
+                }
+                if(!recaptchaToken) {
+                    alert('Por favor, marca la casilla "No soy un robot"');
+                    return;
+                }
+                
+                // Si el email está vacío, el backend lo generará o podemos mandarlo vacío
+                const res = await fetchWithAuth(`${window.API_BASE}/torneos/${currentTournamentId}/inscripciones`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ nombre, elo, email, pass, recaptchaToken })
+                });
+                
+                if (res.ok) {
+                    closeModal('add-player-modal');
+                    renderTournamentDetail(currentTournamentId);
+                } else {
+                    const err = await res.json().catch(() => ({ message: "Error desconocido" }));
+                    alert("Error: " + (err.message || "No se pudo realizar la inscripción."));
+                }
                 return;
             }
             
@@ -217,11 +267,47 @@ function initForms() {
                 console.error("Error inscripciones:", err);
                 alert("Error: no se pudo conectar con el servidor.");
             });
-
-            document.getElementById('form-p-name').value = '';
-            document.getElementById('form-p-elo').value = '';
+            
             closeModal('add-player-modal');
             renderTournamentDetail(currentTournamentId);
+        });
+    }
+
+    const formCreatePlayer = document.getElementById('form-create-player');
+    if (formCreatePlayer) {
+        formCreatePlayer.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const username = document.getElementById('create-p-name').value;
+            const email = document.getElementById('create-p-email').value;
+            const password = document.getElementById('create-p-pass').value;
+            const elo = parseInt(document.getElementById('create-p-elo').value) || 1200;
+            
+            const recaptchaToken = grecaptcha.getResponse(2);
+            if(!recaptchaToken) {
+                alert('Por favor, marca la casilla "No soy un robot"');
+                return;
+            }
+            
+            const res = await API.register(username, password, email, 'PLAYER', elo, recaptchaToken);
+            if (res) {
+                alert("Jugador creado exitosamente.");
+                document.getElementById('form-create-player').reset();
+                closeModal('create-player-modal');
+                renderPlayersView();
+            } else {
+                alert("Error al crear jugador. Es posible que el nombre de usuario ya exista.");
+            }
+        });
+    }
+
+    const formEditElo = document.getElementById('form-edit-elo');
+    if (formEditElo) {
+        formEditElo.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const id = document.getElementById('edit-elo-userid').value;
+            const newElo = document.getElementById('edit-elo-input').value;
+            await window.updateUserElo(id, parseInt(newElo));
+            closeModal('edit-elo-modal');
         });
     }
 
@@ -257,15 +343,14 @@ async function renderDashboard() {
     const activeT = tournaments.filter(t => t.estado === 'EN_CURSO').length;
     document.getElementById('stat-active-tournaments').textContent = activeT;
     
-    let totalP = 0;
+    const users = await API.getUsuarios();
+    const totalP = users.filter(u => u.role !== 'ADMIN').length;
+    document.getElementById('stat-total-players').textContent = totalP;
+    
     let activeM = 0;
 
     for (const t of tournaments) {
         try {
-            const inscRes = await fetchWithAuth(`${window.API_BASE}/torneos/${t.id}/inscripciones`);
-            const insc = await inscRes.json();
-            if(insc) totalP += insc.length;
-
             if (t.estado === 'EN_CURSO') {
                 const partidas = await API.getPartidas(t.id);
                 if(partidas) activeM += partidas.filter(p => !p.resultado || p.resultado === 'P' || p.resultado === '').length;
@@ -281,7 +366,7 @@ async function renderDashboard() {
     // Upcoming list
     const recentList = document.getElementById('recent-tournaments-list');
     recentList.innerHTML = '';
-    const recent = [...tournaments].reverse().slice(0, 4);
+    const recent = [...tournaments].reverse().slice(0, 10);
     if(recent.length === 0) recentList.innerHTML = '<p class="text-muted">No hay torneos próximos.</p>';
     else recent.forEach(t => recentList.appendChild(createTournamentUIItem(t)));
 
@@ -308,11 +393,12 @@ async function renderGlobalRanking() {
         else if(index === 2) posStyle = 'color: #cd7f32; font-weight: bold;'; // Bronce
 
         const roleIcon = u.role === 'ADMIN' ? '<i class="fa-solid fa-crown" title="Administrador" style="color:#d4af37; margin-right:5px;"></i>' : '<i class="fa-solid fa-chess-pawn" style="color:var(--text-muted); margin-right:5px;"></i>';
-        const roleLabel = u.role === 'ADMIN' ? 'Gran Maestro (Admin)' : 'Jugador';
+        const roleLabel = u.role === 'ADMIN' ? 'Admin' : 'Jugador';
+        const displayName = u.username ? u.username : 'Usuario Desconocido';
 
         tr.innerHTML = `
             <td style="${posStyle}">#${index + 1}</td>
-            <td style="font-weight:600;">${u.username}</td>
+            <td style="font-weight:600;">${displayName}</td>
             <td>${roleIcon} ${roleLabel}</td>
             <td style="text-align: right; font-weight: 800; color: #8b5a2b; font-size: 1.1rem;">${u.eloRating || 1200}</td>
         `;
@@ -325,14 +411,7 @@ async function renderTournamentList() {
     const lc = document.getElementById('all-tournaments-list');
     lc.innerHTML = '';
     
-    // Filtrar para que el administrador solo vea los suyos
-    const currentUser = JSON.parse(localStorage.getItem('currentUser') || '{}');
-    const isAdmin = currentUser.role === 'ADMIN';
-    
     let misTorneos = tList;
-    if (isAdmin) {
-        misTorneos = tList.filter(t => t.organizador && t.organizador.id === currentUser.id);
-    }
     
     if(!misTorneos || misTorneos.length === 0) {
         lc.innerHTML = '<p class="text-muted mt-4">Lista vacía. Crea un torneo para comenzar.</p>';
@@ -368,7 +447,60 @@ window.openTournamentDetail = async function(id) {
     renderTournamentDetail(id);
 };
 
+window.openAddPlayerModal = async function(mode = 'existente') {
+    const select = document.getElementById('form-p-select');
+    select.innerHTML = '<option value="">Cargando jugadores...</option>';
+    
+    // Set title and mode
+    const titleEl = document.getElementById('add-player-modal-title');
+    if (mode === 'existente') {
+        titleEl.textContent = 'Elegir de la Lista';
+    } else {
+        titleEl.textContent = 'Inscripción Manual';
+    }
+    
+    window.togglePlayerTab(mode);
+    openModal('add-player-modal');
+    
+    try {
+        const users = await API.getUsuarios();
+        const players = users.filter(u => u.role !== 'ADMIN'); // everyone not an admin is a player
+        
+        select.innerHTML = '<option value="">Seleccione un jugador</option>';
+        players.forEach(p => {
+            const opt = document.createElement('option');
+            opt.value = JSON.stringify({ nombre: p.username, elo: p.eloRating || 1200 });
+            opt.textContent = `${p.username || 'Desconocido'} (ELO: ${p.eloRating || 1200})`;
+            select.appendChild(opt);
+        });
+        
+        if (players.length === 0) {
+            select.innerHTML = '<option value="">No hay jugadores registrados</option>';
+        }
+    } catch (e) {
+        select.innerHTML = '<option value="">Error al cargar</option>';
+    }
+};
 
+
+
+window.togglePlayerTab = function(mode) {
+    document.getElementById('add-player-mode').value = mode;
+    document.getElementById('tab-btn-existente').classList.remove('active');
+    document.getElementById('tab-btn-nuevo').classList.remove('active');
+    document.getElementById('tab-existente-content').style.display = 'none';
+    document.getElementById('tab-nuevo-content').style.display = 'none';
+    
+    document.getElementById('tab-btn-' + mode).classList.add('active');
+    document.getElementById('tab-' + mode + '-content').style.display = 'block';
+};
+
+window.openEditEloModal = function(id, username, elo) {
+    document.getElementById('edit-elo-userid').value = id;
+    document.getElementById('edit-elo-username').textContent = username || 'Sin Nombre';
+    document.getElementById('edit-elo-input').value = elo || 1200;
+    openModal('edit-elo-modal');
+};
 
 window.removeInscripcion = async function(insId) {
     if(!currentTournamentId) return;
@@ -422,7 +554,7 @@ async function renderTournamentDetail(id) {
         btnEdit.onclick = () => openEditTournamentModal(t);
         actionsContainer.appendChild(btnEdit);
 
-        document.getElementById('btn-add-player').style.display = 'inline-flex';
+        document.getElementById('btn-add-player-group').style.display = 'flex';
     } else if (t.estado === 'EN_CURSO') {
         const btnFinish = document.createElement('button');
         btnFinish.type = 'button';
@@ -433,7 +565,7 @@ async function renderTournamentDetail(id) {
              finishTournament(t.id);
         };
         actionsContainer.appendChild(btnFinish);
-        document.getElementById('btn-add-player').style.display = 'none';
+        document.getElementById('btn-add-player-group').style.display = 'none';
     } else {
         // FINALIZADO
         const btnDelete = document.createElement('button');
@@ -444,7 +576,7 @@ async function renderTournamentDetail(id) {
         btnDelete.onclick = () => deleteTournament(t.id);
         actionsContainer.appendChild(btnDelete);
         
-        document.getElementById('btn-add-player').style.display = 'none';
+        document.getElementById('btn-add-player-group').style.display = 'none';
     }
 
     renderPlayers(inscripciones, t.estado);
@@ -616,11 +748,24 @@ function renderStandings(inscripciones, estado) {
     
     sortedInscripciones.forEach((ins, index) => {
         const row = document.createElement('tr');
-        let posCell = `<td>${index + 1}</td>`;
-        if(index === 0) posCell = `<td><i class="fa-solid fa-medal" style="color:#FFD700; font-size:1.2rem;"></i></td>`;
         
+        // Estilo tipo Ranking Global
+        let posStyle = '';
+        let posContent = `#${index + 1}`;
+        
+        if(index === 0) { 
+            posStyle = 'color: #d4af37; font-weight: bold; font-size: 1.2rem;'; 
+            posContent = '<i class="fa-solid fa-medal" title="Oro"></i>';
+        } else if(index === 1) { 
+            posStyle = 'color: #c0c0c0; font-weight: bold;'; 
+            posContent = '<i class="fa-solid fa-medal" title="Plata"></i>';
+        } else if(index === 2) { 
+            posStyle = 'color: #cd7f32; font-weight: bold;'; 
+            posContent = '<i class="fa-solid fa-medal" title="Bronce"></i>';
+        }
+
         row.innerHTML = `
-            ${posCell}
+            <td style="${posStyle}">${posContent}</td>
             <td style="font-weight:600; color:var(--primary-color)">${ins.usuario.username}</td>
             <td style="font-weight:bold; font-size:1.2rem; color:var(--accent-color)">${ins.puntosAcumulados || 0.0}</td>
             <td>${ins.partidasJugadas || 0}</td>
@@ -644,13 +789,46 @@ async function renderUsers() {
     const tbody = document.querySelector('#global-users-table tbody');
     tbody.innerHTML = '';
     
-    users.forEach(u => {
+    // Solo mostrar administradores en esta vista
+    const admins = users.filter(u => u.role === 'ADMIN');
+    
+    admins.forEach(u => {
         const tr = document.createElement('tr');
         tr.innerHTML = `
-            <td><strong>${u.username}</strong></td>
-            <td>${u.email}</td>
-            <td><input type="number" value="${u.eloRating}" min="0" max="4000" class="form-control" style="width:80px" onchange="updateUserElo(${u.id}, this.value)"></td>
-            <td><span class="status-badge ${u.role === 'ADMIN' ? 'status-active' : ''}">${u.role}</span></td>
+            <td><strong>${u.username || 'Sin Nombre'}</strong></td>
+            <td>${u.email || '-'}</td>
+            <td>
+                <span class="elo-tag" style="background:var(--accent-light); color:var(--primary-color); display:inline-block; margin-right:5px; width:45px; text-align:center;">${u.eloRating}</span>
+                <button class="btn btn-secondary btn-sm" onclick="openEditEloModal(${u.id}, '${u.username || ''}', ${u.eloRating})" style="padding:0.2rem 0.5rem;"><i class="fa-solid fa-pen"></i></button>
+            </td>
+            <td><span class="status-badge status-active">${u.role}</span></td>
+            <td>
+                <button class="btn btn-danger btn-sm" onclick="deleteUser(${u.id})"><i class="fa-solid fa-trash"></i></button>
+            </td>
+        `;
+        tbody.appendChild(tr);
+    });
+}
+
+async function renderPlayersView() {
+    const res = await fetchWithAuth(`${window.API_BASE}/usuarios`);
+    const users = await res.json();
+    const tbody = document.querySelector('#global-players-table tbody');
+    tbody.innerHTML = '';
+    
+    // Solo mostrar jugadores
+    const players = users.filter(u => u.role !== 'ADMIN');
+    
+    players.forEach(u => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td><strong>${u.username || 'Sin Nombre'}</strong></td>
+            <td>${u.email || '-'}</td>
+            <td>
+                <span class="elo-tag" style="background:var(--accent-light); color:var(--primary-color); display:inline-block; margin-right:5px; width:45px; text-align:center;">${u.eloRating}</span>
+                <button class="btn btn-secondary btn-sm" onclick="openEditEloModal(${u.id}, '${u.username || ''}', ${u.eloRating})" style="padding:0.2rem 0.5rem;"><i class="fa-solid fa-pen"></i></button>
+            </td>
+            <td><span class="status-badge">${u.role || 'PLAYER'}</span></td>
             <td>
                 <button class="btn btn-danger btn-sm" onclick="deleteUser(${u.id})"><i class="fa-solid fa-trash"></i></button>
             </td>
@@ -662,7 +840,6 @@ async function renderUsers() {
 window.updateUserElo = async function(id, elo) {
     if (elo < 0 || elo > 4000) {
         alert("Error: El ELO debe estar entre 0 y 4000.");
-        renderUsers(); // Revertir el valor en la UI
         return;
     }
     await fetchWithAuth(`${window.API_BASE}/usuarios/${id}`, {
@@ -672,6 +849,7 @@ window.updateUserElo = async function(id, elo) {
     }).catch(e => alert("Error al actualizar ELO"));
     alert("ELO actualizado con éxito");
     renderUsers();
+    renderPlayersView();
 };
 
 window.deleteUser = async function(id) {

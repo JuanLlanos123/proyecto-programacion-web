@@ -84,25 +84,24 @@
                 </div>
             </div>
             <nav class="nav-menu">
-                <div class="nav-section-title admin-only">ADMINISTRACIÓN</div>
+                <div class="nav-section-title">ADMINISTRACIÓN</div>
                 <button class="nav-btn active" data-target="dashboard-view">
                     <i class="fa-solid fa-chart-line"></i> Dashboard
                 </button>
-                <button class="nav-btn admin-only" data-target="tournaments-view">
+                <button class="nav-btn" data-target="tournaments-view">
                     <i class="fa-solid fa-trophy"></i> Mis Torneos
                 </button>
-                <button class="nav-btn admin-only" data-target="users-view">
-                    <i class="fa-solid fa-users-gear"></i> Gestión de Usuarios
+                <button class="nav-btn" data-target="users-view">
+                    <i class="fa-solid fa-users-gear"></i> Gestión de Administradores
                 </button>
-                <div class="nav-section-title">PORTAL JUGADOR</div>
+                <button class="nav-btn" data-target="players-view">
+                    <i class="fa-solid fa-users"></i> Gestión de Jugadores
+                </button>
                 <button class="nav-btn" data-target="ranking-view">
-                    <i class="fa-solid fa-ranking-star"></i> Ranking Global
+                    <i class="fa-solid fa-ranking-star"></i> Ranking
                 </button>
             </nav>
             <div style="padding: 1.5rem; margin-top: auto;">
-                <button class="btn btn-primary admin-only" onclick="openModal('create-tournament-modal')" style="width: 100%; justify-content: center;">
-                    <i class="fa-solid fa-plus"></i> Crear Torneo
-                </button>
                 <button class="btn btn-secondary" onclick="logout()" style="width: 100%; justify-content: center; margin-top: 1rem; background: #fee2e2; color: #991b1b; border: 1px solid #fecaca;">
                     <i class="fa-solid fa-right-from-bracket"></i> Cerrar Sesión
                 </button>
@@ -193,9 +192,14 @@
                     <div id="tab-players" class="tab-content active">
                         <div class="d-flex" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
                             <h3>Lista de Participantes</h3>
-                            <button id="btn-add-player" class="btn btn-primary" onclick="openModal('add-player-modal')">
-                                <i class="fa-solid fa-user-plus"></i> Añadir Jugador
-                            </button>
+                            <div id="btn-add-player-group" style="display: flex; gap: 0.5rem;">
+                                <button class="btn btn-primary" onclick="openAddPlayerModal('existente')">
+                                    <i class="fa-solid fa-list-check"></i> Elegir de la Lista
+                                </button>
+                                <button class="btn btn-secondary" style="background: var(--accent-color); color:white; border:none;" onclick="openAddPlayerModal('nuevo')">
+                                    <i class="fa-solid fa-keyboard"></i> Registro Manual
+                                </button>
+                            </div>
                         </div>
                         <table class="data-table" id="players-table">
                             <thead>
@@ -248,7 +252,7 @@
             <!-- USERS MANAGEMENT VIEW -->
             <section id="users-view" class="view">
                 <header class="view-header">
-                    <h2>Base de Datos de Usuarios</h2>
+                    <h2>Gestión de Administradores</h2>
                     <p>Administra el ELO y los roles de todos los participantes registrados.</p>
                 </header>
                 <div class="card mt-4">
@@ -267,13 +271,38 @@
                         </tbody>
                     </table>
                 </div>
+            </section>
+
+            <!-- PLAYERS MANAGEMENT VIEW -->
+            <section id="players-view" class="view">
+                <header class="view-header">
+                    <h2>Gestión de Jugadores</h2>
+                    <button class="btn btn-primary" onclick="openModal('create-player-modal')">
+                        <i class="fa-solid fa-user-plus"></i> Crear Jugador
+                    </button>
+                </header>
+                <div class="card mt-4">
+                    <table class="data-table" id="global-players-table">
+                        <thead>
+                            <tr>
+                                <th>Usuario</th>
+                                <th>Email</th>
+                                <th>ELO Actual</th>
+                                <th>Rol</th>
+                                <th>Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <!-- Populated via JS -->
+                        </tbody>
+                    </table>
                 </div>
             </section>
 
             <!-- RANKING VIEW -->
             <section id="ranking-view" class="view">
                 <header class="view-header">
-                    <h2>Ranking Global de Maestros</h2>
+                    <h2>Ranking</h2>
                     <p>Clasificación general basada en el ELO Rating de todos los miembros.</p>
                 </header>
                 <div class="card mt-4" style="padding: 0;">
@@ -392,19 +421,87 @@
     <div class="modal-overlay" id="add-player-modal">
         <div class="modal-content">
             <div class="modal-header">
-                <h2>Añadir Jugador</h2>
+                <h2 id="add-player-modal-title">Añadir Jugador</h2>
                 <button class="close-btn" onclick="closeModal('add-player-modal')">&times;</button>
             </div>
+            <div class="tabs" id="add-player-tabs" style="margin-bottom: 1rem; display: none;">
+                <button type="button" class="tab-btn active" id="tab-btn-existente" onclick="togglePlayerTab('existente')">Existente</button>
+                <button type="button" class="tab-btn" id="tab-btn-nuevo" onclick="togglePlayerTab('nuevo')">Manual</button>
+            </div>
             <form id="form-add-player">
+                <input type="hidden" id="add-player-mode" value="existente">
+                <div id="tab-existente-content">
+                    <div class="form-group">
+                        <label>Seleccionar Jugador</label>
+                        <select class="form-control" id="form-p-select">
+                            <option value="">Cargando jugadores...</option>
+                        </select>
+                    </div>
+                </div>
+                <div id="tab-nuevo-content" style="display:none;">
+                    <div class="form-group">
+                        <label>Nombre de Usuario</label>
+                        <input type="text" class="form-control" id="form-p-name" placeholder="Ej: Hikaru Nakamura">
+                    </div>
+                    <div class="form-group">
+                        <label>Correo Electrónico (Opcional)</label>
+                        <input type="email" class="form-control" id="form-p-email" placeholder="Dejar en blanco para generar">
+                    </div>
+                    <div class="form-group">
+                        <label>ELO FIDE</label>
+                        <input type="number" class="form-control" id="form-p-elo" placeholder="Ej: 1200">
+                    </div>
+                    <div class="g-recaptcha" data-sitekey="6Le-KccsAAAAAM7dNenOory_rC3Jv09Vc0jg5NXu" style="margin-bottom:1rem; display:flex; justify-content:center;"></div>
+                </div>
+                <button type="submit" class="btn btn-primary" style="width: 100%; justify-content: center;">Añadir al Torneo</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- CREATE PLAYER MODAL -->
+    <div class="modal-overlay" id="create-player-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Crear Nuevo Jugador</h2>
+                <button class="close-btn" onclick="closeModal('create-player-modal')">&times;</button>
+            </div>
+            <form id="form-create-player">
                 <div class="form-group">
-                    <label>Nombre Completo</label>
-                    <input type="text" class="form-control" id="form-p-name" required placeholder="Ej: Hikaru Nakamura">
+                    <label>Nombre de Usuario</label>
+                    <input type="text" class="form-control" id="create-p-name" required placeholder="Ej: Hikaru Nakamura">
+                </div>
+                <div class="form-group">
+                    <label>Correo Electrónico</label>
+                    <input type="email" class="form-control" id="create-p-email" required placeholder="ejemplo@chess.com">
+                </div>
+                <div class="form-group">
+                    <label>Contraseña</label>
+                    <input type="password" class="form-control" id="create-p-pass" required placeholder="Contraseña">
                 </div>
                 <div class="form-group">
                     <label>ELO FIDE</label>
-                    <input type="number" class="form-control" id="form-p-elo" placeholder="Ej: 2789">
+                    <input type="number" class="form-control" id="create-p-elo" placeholder="Ej: 1200">
                 </div>
-                <button type="submit" class="btn btn-primary" style="width: 100%; justify-content: center;">Añadir al Torneo</button>
+                <div class="g-recaptcha" data-sitekey="6Le-KccsAAAAAM7dNenOory_rC3Jv09Vc0jg5NXu" style="margin-bottom:1rem; display:flex; justify-content:center;"></div>
+                <button type="submit" class="btn btn-primary" style="width: 100%; justify-content: center;">Crear Jugador</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- EDIT ELO MODAL -->
+    <div class="modal-overlay" id="edit-elo-modal">
+        <div class="modal-content" style="max-width: 400px; text-align: center;">
+            <div class="modal-header" style="justify-content: center; border-bottom: none; position: relative;">
+                <h2 style="color: var(--primary-color);"><i class="fa-solid fa-medal"></i> Actualizar ELO</h2>
+                <button class="close-btn" onclick="closeModal('edit-elo-modal')" style="position: absolute; right: 0; top: -5px;">&times;</button>
+            </div>
+            <p id="edit-elo-username" style="font-weight: 600; margin-bottom: 1rem; color: var(--text-main); font-size: 1.1rem;"></p>
+            <form id="form-edit-elo">
+                <input type="hidden" id="edit-elo-userid">
+                <div class="form-group">
+                    <input type="number" class="form-control" id="edit-elo-input" required style="font-size: 2.5rem; text-align: center; font-weight: 800; color: #8b5a2b; padding: 1rem; border-radius: 8px; border: 2px solid var(--accent-light); background: #fffbf7;" min="0" max="4000">
+                </div>
+                <button type="submit" class="btn btn-primary" style="width: 100%; justify-content: center; font-size: 1.1rem; padding: 1rem; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);"><i class="fa-solid fa-check"></i> Confirmar Cambio</button>
             </form>
         </div>
     </div>
@@ -469,7 +566,7 @@
         </div>
     </div>
 
-    <script src="js/api.js?v=202604232145"></script>
-    <script src="js/app.js?v=202604232145"></script>
+    <script src="js/api.js?v=20260428-10"></script>
+    <script src="js/app.js?v=20260428-10"></script>
 </body>
 </html>
