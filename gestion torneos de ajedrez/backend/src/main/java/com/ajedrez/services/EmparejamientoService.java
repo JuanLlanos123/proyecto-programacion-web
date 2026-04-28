@@ -35,6 +35,8 @@ public class EmparejamientoService {
             return generarRondaSuizo(torneo, inscripciones);
         } else if ("ELIMINATORIA".equals(torneo.getSistemaJuego())) {
             return generarRondaEliminatoria(torneo, inscripciones);
+        } else if ("DOBLE_ELIMINATORIA".equals(torneo.getSistemaJuego())) {
+            return generarRondaDobleEliminatoria(torneo, inscripciones);
         } else {
             return generarRoundRobin(torneo, inscripciones);
         }
@@ -222,15 +224,85 @@ public class EmparejamientoService {
         return partidasGeneradas;
     }
 
+    private List<Partida> generarRondaDobleEliminatoria(Torneo torneo, List<Inscripcion> inscripciones) {
+        List<Partida> partidasExistentes = partidaRepository.findByTorneoId(torneo.getId());
+        int rondaActual = 0;
+        for(Partida p : partidasExistentes) if(p.getRondaNumero() > rondaActual) rondaActual = p.getRondaNumero();
+        int nuevaRonda = rondaActual + 1;
+
+        if (rondaActual == 0) {
+            List<Usuario> todos = new ArrayList<>();
+            for(Inscripcion i : inscripciones) todos.add(i.getUsuario());
+            Collections.shuffle(todos);
+            return crearPartidas(torneo, nuevaRonda, todos);
+        }
+
+        List<Usuario> winners = new ArrayList<>();
+        List<Usuario> losers = new ArrayList<>();
+        
+        for (Inscripcion ins : inscripciones) {
+            int derrotas = contarDerrotas(ins.getUsuario().getId(), partidasExistentes);
+            if (derrotas == 0) winners.add(ins.getUsuario());
+            else if (derrotas == 1) losers.add(ins.getUsuario());
+        }
+
+        List<Partida> nuevasPartidas = new ArrayList<>();
+        nuevasPartidas.addAll(crearPartidas(torneo, nuevaRonda, winners));
+        nuevasPartidas.addAll(crearPartidas(torneo, nuevaRonda, losers));
+
+        torneo.setEstado("EN_CURSO");
+        torneoRepository.save(torneo);
+        return nuevasPartidas;
+    }
+
+    private List<Partida> crearPartidas(Torneo torneo, int ronda, List<Usuario> jugadores) {
+        List<Partida> generadas = new ArrayList<>();
+        List<Usuario> pool = new ArrayList<>(jugadores);
+        Usuario byeUser = null;
+        if (pool.size() % 2 != 0) {
+            byeUser = new Usuario();
+            byeUser.setId(-1L);
+            byeUser.setUsername("BYE");
+        }
+        while (!pool.isEmpty()) {
+            Usuario w = pool.remove(0);
+            Usuario b = !pool.isEmpty() ? pool.remove(0) : byeUser;
+            if (b != null) {
+                Partida p = new Partida();
+                p.setTorneo(torneo);
+                p.setRondaNumero(ronda);
+                p.setBlancas(w);
+                if (b.getId() != null && b.getId() == -1L) {
+                    p.setResultado("BYE");
+                    p.setNegras(null);
+                } else {
+                    p.setNegras(b);
+                }
+                generadas.add(partidaRepository.save(p));
+            }
+        }
+        return generadas;
+    }
+
+    private int contarDerrotas(Long userId, List<Partida> historial) {
+        int derrotas = 0;
+        for (Partida p : historial) {
+            if (p.getResultado() == null || p.getResultado().equals("P") || p.getResultado().equals("BYE")) continue;
+            boolean isWhite = p.getBlancas() != null && p.getBlancas().getId().equals(userId);
+            boolean isBlack = p.getNegras() != null && p.getNegras().getId().equals(userId);
+            if (isWhite && "0-1".equals(p.getResultado())) derrotas++;
+            if (isBlack && "1-0".equals(p.getResultado())) derrotas++;
+        }
+        return derrotas;
+    }
+
     private boolean yaJugaron(Usuario u1, Usuario u2, List<Partida> historial) {
         if (u1.getId() == -1L || u2.getId() == -1L) return false;
         for (Partida p : historial) {
             if (p.getBlancas() == null || p.getNegras() == null) continue;
             Long wId = p.getBlancas().getId();
             Long bId = p.getNegras().getId();
-            if ((wId.equals(u1.getId()) && bId.equals(u2.getId())) || (wId.equals(u2.getId()) && bId.equals(u1.getId()))) {
-                return true;
-            }
+            if ((wId.equals(u1.getId()) && bId.equals(u2.getId())) || (wId.equals(u2.getId()) && bId.equals(u1.getId()))) return true;
         }
         return false;
     }

@@ -238,6 +238,7 @@ async function renderTournamentDetail(id) {
         let color = "#7c3aed";
         if(t.sistemaJuego === 'SUIZO') label = "Sistema Suizo";
         if(t.sistemaJuego === 'ELIMINATORIA') { label = "Eliminatoria Directa"; color = "#dc2626"; }
+        if(t.sistemaJuego === 'DOBLE_ELIMINATORIA') { label = "Doble Eliminación"; color = "#1e40af"; }
         if(t.sistemaJuego === 'ROUND_ROBIN') { label = "Round Robin"; color = "#0369a1"; }
         
         standingsTitle.innerHTML = `Clasificación <span style="background:${color}; color:white; padding:2px 8px; border-radius:10px; font-size:12px;">${label}</span>`;
