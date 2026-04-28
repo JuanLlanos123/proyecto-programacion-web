@@ -1,4 +1,25 @@
+# Java / Maven
+target/
+*.class
+*.jar
+*.war
+*.ear
+
+# Database
+*.db
+*.mv.db
+*.trace.db
+
+# IDEs
+.idea/
+.vscode/
+*.iml
+*.swp
+*.DS_Store
+
+# Node
 node_modules/
 package-lock.json
-package.json
+
+# App specific
 test-jsdom.js
