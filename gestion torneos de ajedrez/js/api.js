@@ -1,4 +1,4 @@
-window.API_BASE = window.location.hostname.includes('railway.app') 
+window.API_BASE = (window.location.hostname.includes('railway.app') || window.location.hostname.includes('github.io'))
     ? 'https://backend-lmeb-production.up.railway.app/api' 
     : 'http://localhost:8080/api';
 const API_BASE = window.API_BASE;

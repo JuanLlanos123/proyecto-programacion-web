@@ -19,7 +19,7 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
     @Override
     public void registerStompEndpoints(StompEndpointRegistry registry) {
         registry.addEndpoint("/ws-chess")
-                .setAllowedOrigins("*", "https://frontend-m3li-production.up.railway.app") // Para desarrollo y producción
+                .setAllowedOrigins("*", "https://frontend-m3li-production.up.railway.app", "https://juanllanos123.github.io") // Para desarrollo y producción
                 .withSockJS();
     }
 }

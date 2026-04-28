@@ -917,7 +917,7 @@ window.deleteUser = async function(id) {
 let stompClient = null;
 
 function connectWebSocket() {
-    const wsUrl = window.location.hostname.includes('railway.app')
+    const wsUrl = (window.location.hostname.includes('railway.app') || window.location.hostname.includes('github.io'))
         ? 'https://backend-lmeb-production.up.railway.app/ws-chess'
         : 'http://localhost:8080/ws-chess';
     const socket = new SockJS(wsUrl);
