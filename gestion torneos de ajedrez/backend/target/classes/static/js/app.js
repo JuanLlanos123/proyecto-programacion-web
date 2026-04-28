@@ -191,7 +191,8 @@ function initForms() {
             submitBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Creando...';
             
             const nombre = document.getElementById('form-t-name').value;
-            const t = await API.createTorneo({ nombre, descripcion: "Torneo de Ajedrez", sistemaJuego: "ROUND_ROBIN" });
+            const sistemaJuego = document.getElementById('form-t-sistema').value;
+            const t = await API.createTorneo({ nombre, descripcion: "Torneo de Ajedrez", sistemaJuego });
             
             submitBtn.disabled = false;
             submitBtn.textContent = originalText;
@@ -320,11 +321,12 @@ function initForms() {
             const nombre = document.getElementById('edit-t-name').value;
             const ubicacion = document.getElementById('edit-t-location').value;
             const descripcion = document.getElementById('edit-t-desc').value;
+            const sistemaJuego = document.getElementById('edit-t-sistema').value;
             
             await fetchWithAuth(`${window.API_BASE}/torneos/${id}`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ nombre, ubicacion, descripcion })
+                body: JSON.stringify({ nombre, ubicacion, descripcion, sistemaJuego })
             });
             
             closeModal('edit-tournament-modal');
@@ -604,7 +606,7 @@ async function renderTournamentDetail(id) {
 
     renderPlayers(inscripciones, t.estado);
     renderRounds(partidas, t.estado, id);
-    renderStandings(inscripciones, t.estado);
+    renderStandings(inscripciones, t.estado, t.sistemaJuego);
 }
 
 function renderPlayers(inscripciones, estado) {
@@ -761,11 +763,35 @@ function renderRounds(partidas, estado, tId) {
     });
 }
 
-function renderStandings(inscripciones, estado) {
+function renderStandings(inscripciones, estado, sistemaJuego) {
     const tbody = document.querySelector('#standings-table tbody');
     tbody.innerHTML = '';
     if(estado === 'PENDIENTE') { tbody.innerHTML = '<tr><td colspan="6" class="text-center">El torneo no ha iniciado.</td></tr>'; return;}
-    
+
+    // Badge de sistema de juego
+    const standingsTitle = document.querySelector('#tab-standings h3');
+    if (standingsTitle) {
+        const isSuizo = sistemaJuego === 'SUIZO';
+        const badgeColor = isSuizo ? '#7c3aed' : '#0369a1';
+        const badgeIcon = isSuizo ? '&#9820;' : '&#9827;';
+        const badgeLabel = isSuizo ? 'Sistema Suizo' : 'Round Robin';
+        standingsTitle.innerHTML = `Clasificación Actual 
+            <span style="margin-left:0.75rem; padding:0.25rem 0.75rem; border-radius:999px; background:${badgeColor}; color:white; font-size:0.75rem; font-weight:700; vertical-align:middle;">
+                ${badgeIcon} ${badgeLabel}
+            </span>`;
+        // Leyenda de desempate para suizo
+        let legend = document.getElementById('standings-legend');
+        if (!legend) {
+            legend = document.createElement('p');
+            legend.id = 'standings-legend';
+            legend.style.cssText = 'font-size:0.8rem; color:var(--text-muted); margin:0.25rem 0 0.75rem 0;';
+            standingsTitle.after(legend);
+        }
+        legend.textContent = isSuizo
+            ? 'Desempate 1º: Buchholz (suma de puntos de rivales) • Desempate 2º: Sonneborn-Berger (calidad de victorias)'
+            : 'Buchholz y SB no aplican en Round Robin (se muestran en 0)';
+    }
+
     const sortedInscripciones = [...inscripciones].sort((a, b) => {
         if(b.puntosAcumulados !== a.puntosAcumulados) return b.puntosAcumulados - a.puntosAcumulados;
         if(b.buchholz !== a.buchholz) return b.buchholz - a.buchholz;
@@ -775,7 +801,6 @@ function renderStandings(inscripciones, estado) {
     sortedInscripciones.forEach((ins, index) => {
         const row = document.createElement('tr');
         
-        // Estilo tipo Ranking Global
         let posStyle = '';
         let posContent = `#${index + 1}`;
         
@@ -794,8 +819,8 @@ function renderStandings(inscripciones, estado) {
             <td style="${posStyle}">${posContent}</td>
             <td style="font-weight:600; color:var(--primary-color)">${ins.usuario.username}</td>
             <td style="font-weight:bold; font-size:1.2rem; color:var(--accent-color)">${ins.puntosAcumulados || 0.0}</td>
-            <td>${ins.buchholz || 0.0}</td>
-            <td>${ins.sonnebornBerger || 0.0}</td>
+            <td>${(ins.buchholz || 0).toFixed(1)}</td>
+            <td>${(ins.sonnebornBerger || 0).toFixed(1)}</td>
             <td>${ins.partidasJugadas || 0}</td>
         `;
         tbody.appendChild(row);
@@ -807,6 +832,9 @@ window.openEditTournamentModal = function(t) {
     document.getElementById('edit-t-name').value = t.nombre;
     document.getElementById('edit-t-location').value = t.ubicacion || '';
     document.getElementById('edit-t-desc').value = t.descripcion || '';
+    // Pre-seleccionar el sistema de juego actual
+    const sistemaSelect = document.getElementById('edit-t-sistema');
+    if (sistemaSelect) sistemaSelect.value = t.sistemaJuego || 'ROUND_ROBIN';
     openModal('edit-tournament-modal');
 };
 
@@ -889,7 +917,10 @@ window.deleteUser = async function(id) {
 let stompClient = null;
 
 function connectWebSocket() {
-    const socket = new SockJS('http://localhost:8080/ws-chess');
+    const wsUrl = window.location.hostname.includes('railway.app')
+        ? 'https://backend-lmeb-production.up.railway.app/ws-chess'
+        : 'http://localhost:8080/ws-chess';
+    const socket = new SockJS(wsUrl);
     stompClient = Stomp.over(socket);
     stompClient.debug = null; // Disable console spam
 

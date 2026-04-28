@@ -420,6 +420,13 @@
                     <label>Nombre del Torneo</label>
                     <input type="text" class="form-control" id="form-t-name" required placeholder="Ej: Open de Primavera">
                 </div>
+                <div class="form-group">
+                    <label>Sistema de Juego</label>
+                    <select class="form-control" id="form-t-sistema">
+                        <option value="ROUND_ROBIN">&#9827; Round Robin (todos contra todos)</option>
+                        <option value="SUIZO">&#9820; Sistema Suizo</option>
+                    </select>
+                </div>
                 <button type="submit" class="btn btn-primary btn-large" style="width: 100%; justify-content: center;">Confirmar Creación</button>
             </form>
         </div>
@@ -527,6 +534,13 @@
                     <input type="text" class="form-control" id="edit-t-name" required>
                 </div>
                 <div class="form-group">
+                    <label>Sistema de Juego</label>
+                    <select class="form-control" id="edit-t-sistema">
+                        <option value="ROUND_ROBIN">&#9827; Round Robin (todos contra todos)</option>
+                        <option value="SUIZO">&#9820; Sistema Suizo</option>
+                    </select>
+                </div>
+                <div class="form-group">
                     <label>Ubicación</label>
                     <input type="text" class="form-control" id="edit-t-location">
                 </div>
@@ -573,7 +587,7 @@
         </div>
     </div>
 
-    <script src="js/api.js?v=20260428-11"></script>
-    <script src="js/app.js?v=20260428-11"></script>
+    <script src="js/api.js?v=20260428-12"></script>
+    <script src="js/app.js?v=20260428-12"></script>
 </body>
 </html>

@@ -16,9 +16,13 @@ import com.ajedrez.repositories.UsuarioRepository;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * CONTROLADOR DE TORNEOS
+ * Gestiona el ciclo de vida de los torneos: creación, inscripciones, emparejamientos y resultados.
+ */
 @RestController
 @RequestMapping("/api/torneos")
-@CrossOrigin(origins = "*") // Simplificado para desarrollo local
+@CrossOrigin(origins = "*") 
 public class TorneoController {
 
     @Autowired
@@ -42,14 +46,17 @@ public class TorneoController {
     @Autowired
     private com.ajedrez.services.EmailService emailService;
 
+    // Template para enviar mensajes de WebSockets al frontend
     @Autowired
     private org.springframework.messaging.simp.SimpMessagingTemplate messagingTemplate;
 
+    /** Obtiene todos los torneos registrados */
     @GetMapping
     public List<Torneo> getAllTorneos() {
         return torneoRepository.findAll();
     }
 
+    /** Crea un nuevo torneo asignando al organizador logueado */
     @PostMapping
     public Torneo crearTorneo(@RequestBody Torneo torneo, org.springframework.security.core.Authentication authentication) {
         if (authentication != null && authentication.getName() != null) {
@@ -59,6 +66,7 @@ public class TorneoController {
         return torneoRepository.save(torneo);
     }
 
+    /** Obtiene un torneo por su ID */
     @GetMapping("/{id}")
     public ResponseEntity<Torneo> getTorneo(@PathVariable Long id) {
         return torneoRepository.findById(id)
@@ -66,11 +74,16 @@ public class TorneoController {
                 .orElse(ResponseEntity.notFound().build());
     }
     
+    /** Obtiene la lista de inscritos de un torneo específico */
     @GetMapping("/{id}/inscripciones")
     public List<Inscripcion> getInscripciones(@PathVariable Long id) {
         return inscripcionRepository.findByTorneoId(id);
     }
 
+    /** 
+     * Inicia el torneo generando las rondas iniciales mediante el servicio de emparejamiento.
+     * Envía una notificación global vía WebSockets.
+     */
     @PostMapping("/{id}/iniciar")
     public ResponseEntity<?> iniciarTorneo(@PathVariable Long id) {
         Torneo torneo = torneoRepository.findById(id).orElse(null);
@@ -79,17 +92,23 @@ public class TorneoController {
         List<Inscripcion> inscritos = inscripcionRepository.findByTorneoId(id);
         List<Partida> partidas = emparejamientoService.generarRondas(torneo, inscritos);
         
-        // Notificar a todos que se generaron rondas
+        // Notificar a todos los clientes conectados
         messagingTemplate.convertAndSend("/topic/notifications", "¡Se han generado nuevas rondas en el torneo: " + torneo.getNombre() + "!");
         
         return ResponseEntity.ok(partidas);
     }
 
+    /** Obtiene todas las partidas jugadas o por jugar de un torneo */
     @GetMapping("/{id}/partidas")
     public List<Partida> getPartidas(@PathVariable Long id) {
         return partidaRepository.findByTorneoId(id);
     }
 
+    /** 
+     * Inscribe a un jugador en un torneo. 
+     * Si el usuario no existe, lo crea automáticamente (Registro manual).
+     * Incluye validación de reCAPTCHA y envío de correo de bienvenida.
+     */
     @PostMapping("/{id}/inscripciones")
     public ResponseEntity<?> inscribirJugador(@PathVariable Long id, @RequestBody Map<String, String> body) {
         Torneo torneo = torneoRepository.findById(id).orElse(null);
@@ -99,7 +118,7 @@ public class TorneoController {
         String eloStr = String.valueOf(body.get("elo"));
         String recaptchaToken = body.get("recaptchaToken");
         
-        // Si se provee token (manual), verificarlo
+        // Verificación de seguridad de Google reCAPTCHA
         if (recaptchaToken != null && !recaptchaService.verify(recaptchaToken)) {
             return ResponseEntity.badRequest().body(Map.of("message", "reCAPTCHA inválido"));
         }
@@ -111,11 +130,11 @@ public class TorneoController {
             return ResponseEntity.badRequest().body("El ELO debe estar entre 0 y 4000");
         }
 
-        // Create or find user
         String formattedUsername = nombre.trim();
         Usuario u = usuarioRepository.findByUsername(formattedUsername).orElse(null);
         
         if (u == null) {
+            // Flujo de creación de nuevo usuario (Registro rápido desde torneo)
             u = new Usuario();
             u.setUsername(formattedUsername);
             String email = body.get("email");
@@ -132,12 +151,12 @@ public class TorneoController {
             u.setRole("PLAYER");
             u = usuarioRepository.save(u);
             
-            // Enviar correo de bienvenida si se crea manual (cuando se provee recaptcha o pass)
+            // Envío de credenciales por email al jugador
             if (body.containsKey("recaptchaToken")) {
                 emailService.sendWelcomeEmail(u.getEmail(), u.getUsername(), pass);
             }
         } else {
-            // Solución al error de compilación: Usar una variable final para la lambda
+            // Verificación de que no esté inscrito ya
             final Long userId = u.getId();
             boolean yaInscrito = inscripcionRepository.findByTorneoId(id).stream()
                     .anyMatch(ins -> ins.getUsuario().getId().equals(userId));
@@ -146,12 +165,14 @@ public class TorneoController {
                 return ResponseEntity.badRequest().body("El jugador ya está inscrito en este torneo.");
             }
             
+            // Actualización de ELO si ha cambiado
             if (!u.getEloRating().equals(elo)) {
                 u.setEloRating(elo);
                 usuarioRepository.save(u);
             }
         }
 
+        // Crear registro de inscripción
         Inscripcion inscripcion = new Inscripcion();
         inscripcion.setTorneo(torneo);
         inscripcion.setUsuario(u);
@@ -159,6 +180,7 @@ public class TorneoController {
         return ResponseEntity.ok(inscripcionRepository.save(inscripcion));
     }
 
+    /** Elimina un torneo y todos sus datos relacionados (Partidas, Inscripciones) */
     @DeleteMapping("/{id}")
     @org.springframework.transaction.annotation.Transactional
     public ResponseEntity<?> eliminarTorneo(@PathVariable Long id) {
@@ -171,6 +193,7 @@ public class TorneoController {
         return ResponseEntity.noContent().build();
     }
 
+    /** Elimina a un jugador específico de un torneo */
     @DeleteMapping("/{id}/inscripciones/{insId}")
     public ResponseEntity<?> eliminarInscripcion(@PathVariable Long id, @PathVariable Long insId) {
         return inscripcionRepository.findById(insId).map(ins -> {
@@ -179,6 +202,7 @@ public class TorneoController {
         }).orElse(ResponseEntity.notFound().build());
     }
 
+    /** Finaliza el torneo y marca la fecha de cierre */
     @PutMapping("/{id}/finalizar")
     public ResponseEntity<?> finalizarTorneo(@PathVariable Long id) {
         return torneoRepository.findById(id).map(torneo -> {
@@ -188,6 +212,7 @@ public class TorneoController {
         }).orElse(ResponseEntity.notFound().build());
     }
 
+    /** Actualiza datos básicos del torneo (Nombre, Sistema de Juego, etc.) */
     @PutMapping("/{id}")
     public ResponseEntity<?> actualizarTorneo(@PathVariable Long id, @RequestBody Map<String, Object> body) {
         return torneoRepository.findById(id).map(torneo -> {
