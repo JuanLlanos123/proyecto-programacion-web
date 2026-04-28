@@ -33,6 +33,8 @@ public class EmparejamientoService {
 
         if ("SUIZO".equals(torneo.getSistemaJuego())) {
             return generarRondaSuizo(torneo, inscripciones);
+        } else if ("ELIMINATORIA".equals(torneo.getSistemaJuego())) {
+            return generarRondaEliminatoria(torneo, inscripciones);
         } else {
             return generarRoundRobin(torneo, inscripciones);
         }
@@ -163,6 +165,58 @@ public class EmparejamientoService {
             }
         }
 
+        torneo.setEstado("EN_CURSO");
+        torneoRepository.save(torneo);
+        return partidasGeneradas;
+    }
+
+    private List<Partida> generarRondaEliminatoria(Torneo torneo, List<Inscripcion> inscripciones) {
+        List<Partida> partidasExistentes = partidaRepository.findByTorneoId(torneo.getId());
+        int rondaActual = 0;
+        for(Partida p : partidasExistentes) {
+            if(p.getRondaNumero() > rondaActual) rondaActual = p.getRondaNumero();
+        }
+        int nuevaRonda = rondaActual + 1;
+        List<Usuario> jugadoresParaEstaRonda = new ArrayList<>();
+        if (rondaActual == 0) {
+            for(Inscripcion i : inscripciones) jugadoresParaEstaRonda.add(i.getUsuario());
+            Collections.shuffle(jugadoresParaEstaRonda);
+        } else {
+            final int rAnt = rondaActual;
+            List<Partida> rondaAnterior = new ArrayList<>();
+            for(Partida p : partidasExistentes) if(p.getRondaNumero() == rAnt) rondaAnterior.add(p);
+            for (Partida p : rondaAnterior) {
+                if ("1-0".equals(p.getResultado()) || "BYE".equals(p.getResultado())) jugadoresParaEstaRonda.add(p.getBlancas());
+                else if ("0-1".equals(p.getResultado())) jugadoresParaEstaRonda.add(p.getNegras());
+                else if ("0.5-0.5".equals(p.getResultado())) jugadoresParaEstaRonda.add(p.getBlancas());
+            }
+        }
+        if (jugadoresParaEstaRonda.size() < 2 && rondaActual > 0) return new ArrayList<>();
+        Usuario byeUser = null;
+        if (jugadoresParaEstaRonda.size() % 2 != 0) {
+            byeUser = new Usuario();
+            byeUser.setId(-1L);
+            byeUser.setUsername("BYE");
+        }
+        List<Partida> partidasGeneradas = new ArrayList<>();
+        while (!jugadoresParaEstaRonda.isEmpty()) {
+            Usuario white = jugadoresParaEstaRonda.remove(0);
+            Usuario black = !jugadoresParaEstaRonda.isEmpty() ? jugadoresParaEstaRonda.remove(0) : byeUser;
+            if (black != null) {
+                Partida partida = new Partida();
+                partida.setTorneo(torneo);
+                partida.setRondaNumero(nuevaRonda);
+                if (black.getId() != null && black.getId() == -1L) {
+                    partida.setResultado("BYE");
+                    partida.setBlancas(white);
+                    partida.setNegras(null);
+                } else {
+                    partida.setBlancas(white);
+                    partida.setNegras(black);
+                }
+                partidasGeneradas.add(partidaRepository.save(partida));
+            }
+        }
         torneo.setEstado("EN_CURSO");
         torneoRepository.save(torneo);
         return partidasGeneradas;
