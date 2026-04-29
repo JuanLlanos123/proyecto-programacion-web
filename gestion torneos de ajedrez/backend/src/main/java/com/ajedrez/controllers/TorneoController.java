@@ -123,10 +123,14 @@ public class TorneoController {
             return ResponseEntity.badRequest().body(Map.of("message", "reCAPTCHA inválido"));
         }
 
-        Integer elo = 1200;
-        try { elo = Integer.parseInt(eloStr); } catch(Exception e) {}
+        Integer elo = null;
+        if (body.containsKey("elo") && body.get("elo") != null) {
+            try { 
+                elo = Integer.parseInt(String.valueOf(body.get("elo"))); 
+            } catch(Exception e) {}
+        }
         
-        if(elo < 0 || elo > 4000) {
+        if(elo != null && (elo < 0 || elo > 4000)) {
             return ResponseEntity.badRequest().body("El ELO debe estar entre 0 y 4000");
         }
 
@@ -147,7 +151,7 @@ public class TorneoController {
             }
             u.setEmail(email);
             u.setPasswordHash(pass);
-            u.setEloRating(elo);
+            if (elo != null) u.setEloRating(elo);
             u.setRole("PLAYER");
             u = usuarioRepository.save(u);
             
@@ -165,8 +169,8 @@ public class TorneoController {
                 return ResponseEntity.badRequest().body("El jugador ya está inscrito en este torneo.");
             }
             
-            // Actualización de ELO si ha cambiado
-            if (!u.getEloRating().equals(elo)) {
+            // Actualización de ELO si ha cambiado y se proporcionó uno nuevo
+            if (elo != null && !u.getEloRating().equals(elo)) {
                 u.setEloRating(elo);
                 usuarioRepository.save(u);
             }

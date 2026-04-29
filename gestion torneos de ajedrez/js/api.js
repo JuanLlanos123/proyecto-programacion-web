@@ -135,6 +135,46 @@ const API = {
         }
     },
 
+    /** Actualiza los datos de un torneo */
+    async updateTorneo(id, torneoData) {
+        try {
+            const response = await fetchWithAuth(`${API_BASE}/torneos/${id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(torneoData)
+            });
+            return await response.json();
+        } catch (error) {
+            console.error("Error al actualizar torneo:", error);
+        }
+    },
+
+    /** Finaliza un torneo */
+    async finalizarTorneo(id) {
+        try {
+            const response = await fetchWithAuth(`${API_BASE}/torneos/${id}/finalizar`, {
+                method: 'PUT'
+            });
+            return await response.json();
+        } catch (error) {
+            console.error("Error al finalizar torneo:", error);
+        }
+    },
+
+    /** Inscribe un jugador en un torneo */
+    async inscribirJugador(torneoId, data) {
+        try {
+            const response = await fetchWithAuth(`${API_BASE}/torneos/${torneoId}/inscripciones`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            });
+            return await response.json();
+        } catch (error) {
+            console.error("Error al inscribir jugador:", error);
+        }
+    },
+
     // --- GESTIÓN DE USUARIOS ---
 
     /** Obtiene la lista de todos los usuarios del sistema */
