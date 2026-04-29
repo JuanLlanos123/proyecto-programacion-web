@@ -170,14 +170,29 @@ function initForms() {
     if (formCreate) {
         formCreate.addEventListener('submit', async (e) => {
             e.preventDefault();
-            const nombre = document.getElementById('form-t-name').value;
-            const sistemaJuego = document.getElementById('form-t-sistema').value;
-            const t = await API.createTorneo({ nombre, descripcion: "Torneo de Ajedrez", sistemaJuego });
-            if(t) {
-                closeModal('create-tournament-modal');
-                renderDashboard();
-                renderTournamentList();
-                openTournamentDetail(t.id);
+            const btn = formCreate.querySelector('button[type="submit"]');
+            const originalText = btn.innerHTML;
+            
+            // Evitar doble envío
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i> Creando...';
+            
+            try {
+                const nombre = document.getElementById('form-t-name').value;
+                const sistemaJuego = document.getElementById('form-t-sistema').value;
+                const t = await API.createTorneo({ nombre, descripcion: "Torneo de Ajedrez", sistemaJuego });
+                if(t) {
+                    closeModal('create-tournament-modal');
+                    renderDashboard();
+                    renderTournamentList();
+                    openTournamentDetail(t.id);
+                }
+            } catch (err) {
+                console.error(err);
+                alert("Error al crear el torneo");
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = originalText;
             }
         });
     }
@@ -357,7 +372,7 @@ async function renderDashboard() {
     
     const recentList = document.getElementById('recent-tournaments-list');
     recentList.innerHTML = '';
-    [...tournaments].reverse().slice(0, 5).forEach(t => recentList.appendChild(createTournamentUIItem(t)));
+    [...tournaments].reverse().slice(0, 10).forEach(t => recentList.appendChild(createTournamentUIItem(t)));
     renderGlobalRanking();
 }
 
@@ -530,20 +545,23 @@ function renderRounds(partidas, estado, tId) {
             row.style = 'flex-direction: row; justify-content: space-between; align-items: center; padding: 0.8rem;';
             
             const resultDisplay = p.resultado || 'Pendiente';
-            const canEdit = estado === 'EN_CURSO' && (!p.resultado || p.resultado === 'null');
+            const cleanEstado = (estado || '').trim().toUpperCase();
+            const canEdit = cleanEstado === 'EN_CURSO' && (!p.resultado || p.resultado === 'null' || p.resultado === '');
             
             row.innerHTML = `
                 <div style="flex: 1;">
-                    <strong>${p.blancas.username}</strong> vs <strong>${p.negras ? p.negras.username : 'BYE'}</strong>
+                    <strong>${p.blancas ? p.blancas.username : '???'}</strong> vs <strong>${p.negras ? p.negras.username : 'BYE'}</strong>
                 </div>
                 <div style="flex: 1; text-align: center;">
                     <span class="status-badge ${p.resultado ? 'status-active' : 'status-pending'}">${resultDisplay}</span>
                 </div>
                 <div style="flex: 1; text-align: right;">
                     ${canEdit ? `
-                        <button class="btn btn-secondary" onclick="setResult('${p.id}', '1-0')">1-0</button>
-                        <button class="btn btn-secondary" onclick="setResult('${p.id}', '0.5-0.5')">½-½</button>
-                        <button class="btn btn-secondary" onclick="setResult('${p.id}', '0-1')">0-1</button>
+                        <div class="btn-group">
+                            <button class="btn btn-secondary" style="padding: 2px 8px; font-size: 0.8rem; background: #16a34a; color: white;" onclick="setResult('${p.id}', '1-0')">1-0</button>
+                            <button class="btn btn-secondary" style="padding: 2px 8px; font-size: 0.8rem;" onclick="setResult('${p.id}', '0.5-0.5')">½-½</button>
+                            <button class="btn btn-secondary" style="padding: 2px 8px; font-size: 0.8rem; background: #dc2626; color: white;" onclick="setResult('${p.id}', '0-1')">0-1</button>
+                        </div>
                     ` : ''}
                 </div>
             `;

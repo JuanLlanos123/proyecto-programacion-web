@@ -92,13 +92,16 @@ const API = {
     /** Inicia el torneo y genera los emparejamientos de la primera ronda */
     async startTorneo(id) {
         try {
-            const response = await fetchWithAuth(`${API_BASE}/torneos/${id}/iniciar`, {
-                method: 'POST'
-            });
+            const response = await fetchWithAuth(`${API_BASE}/torneos/${id}/iniciar`, { method: 'POST' });
+            if (!response.ok) {
+                const text = await response.text();
+                throw new Error(text || "Error desconocido");
+            }
             return await response.json();
         } catch (error) {
             console.error("Error al iniciar torneo:", error);
-            return [];
+            alert("No se pudo iniciar/avanzar el torneo: " + error.message);
+            return null;
         }
     },
 
@@ -132,6 +135,46 @@ const API = {
         } catch (error) {
             console.error("Error al borrar inscripción:", error);
             return false;
+        }
+    },
+
+    /** Actualiza los datos de un torneo */
+    async updateTorneo(id, torneoData) {
+        try {
+            const response = await fetchWithAuth(`${API_BASE}/torneos/${id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(torneoData)
+            });
+            return await response.json();
+        } catch (error) {
+            console.error("Error al actualizar torneo:", error);
+        }
+    },
+
+    /** Finaliza un torneo */
+    async finalizarTorneo(id) {
+        try {
+            const response = await fetchWithAuth(`${API_BASE}/torneos/${id}/finalizar`, {
+                method: 'PUT'
+            });
+            return await response.json();
+        } catch (error) {
+            console.error("Error al finalizar torneo:", error);
+        }
+    },
+
+    /** Inscribe un jugador en un torneo */
+    async inscribirJugador(torneoId, data) {
+        try {
+            const response = await fetchWithAuth(`${API_BASE}/torneos/${torneoId}/inscripciones`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            });
+            return await response.json();
+        } catch (error) {
+            console.error("Error al inscribir jugador:", error);
         }
     },
 

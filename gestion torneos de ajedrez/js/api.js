@@ -92,13 +92,16 @@ const API = {
     /** Inicia el torneo y genera los emparejamientos de la primera ronda */
     async startTorneo(id) {
         try {
-            const response = await fetchWithAuth(`${API_BASE}/torneos/${id}/iniciar`, {
-                method: 'POST'
-            });
+            const response = await fetchWithAuth(`${API_BASE}/torneos/${id}/iniciar`, { method: 'POST' });
+            if (!response.ok) {
+                const text = await response.text();
+                throw new Error(text || "Error desconocido");
+            }
             return await response.json();
         } catch (error) {
             console.error("Error al iniciar torneo:", error);
-            return [];
+            alert("No se pudo iniciar/avanzar el torneo: " + error.message);
+            return null;
         }
     },
 
