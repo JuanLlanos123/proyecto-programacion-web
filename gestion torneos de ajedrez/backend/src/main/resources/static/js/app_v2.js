@@ -271,28 +271,27 @@ async function renderTournamentDetail(id) {
     if (t.estado === 'FINALIZADO') {
         const winner = [...inscripciones].sort((a,b) => b.puntosAcumulados - a.puntosAcumulados)[0];
         if(winner) {
+            const bannerWrapper = document.createElement('div');
+            bannerWrapper.id = 'champion-banner-global';
+            bannerWrapper.style = 'width: 100%; display: flex; justify-content: center; margin: 20px 0; clear: both;';
+            
             const banner = document.createElement('div');
-            banner.id = 'champion-banner-global';
-            // Negative margins compensate for the 3rem side padding of .main-content
-            // so the banner bleeds edge-to-edge like a footer
             banner.style = [
-                'background: linear-gradient(135deg, #f59e0b 0%, #fbbf24 50%, #f59e0b 100%)',
+                'background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%)',
                 'color: white',
-                'padding: 40px 3rem',
+                'padding: 20px 40px',
+                'border-radius: 15px',
                 'text-align: center',
-                'margin: 60px -3rem -2.5rem -3rem',   // break out of parent padding
-                'font-weight: 900',
-                'font-size: 2.2rem',
-                'letter-spacing: 0.03em',
-                'box-shadow: 0 -6px 30px rgba(245,158,11,0.35)',
-                'border-top: 5px solid white',
-                'border-radius: 0',
-                'display: block',
-                'width: calc(100% + 6rem)',            // compensate for -3rem*2
-                'box-sizing: border-box'
+                'font-weight: 800',
+                'font-size: 1.8rem',
+                'box-shadow: 0 10px 25px rgba(245, 158, 11, 0.4)',
+                'border: 3px solid white',
+                'display: inline-block'
             ].join(';');
+            
             banner.innerHTML = `🏆 &nbsp; ¡EL GRAN CAMPEÓN ES: ${winner.usuario.username.toUpperCase()}! &nbsp; 🏆`;
-            detailContainer.appendChild(banner);
+            bannerWrapper.appendChild(banner);
+            header.insertAdjacentElement('afterend', bannerWrapper);
         }
     }
 
