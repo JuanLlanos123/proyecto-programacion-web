@@ -1,5 +1,5 @@
 /**
- * app_v2.js - LOGICA MAESTRA (RECAPTCHA SMART FIX)
+ * app_v2.js - LOGICA MAESTRA (BANNER DE CAMPEÓN AL FINAL)
  */
 
 let currentTournamentId = null;
@@ -160,29 +160,22 @@ function initForms() {
         formAddPlayer.addEventListener('submit', async (e) => {
             e.preventDefault();
             const mode = document.getElementById('add-player-mode').value;
-            let data = {}; // No enviamos nada por defecto
-            
+            let data = {};
             if (mode === 'existente') {
                 const select = document.getElementById('form-p-select');
                 if(select.selectedIndex === -1) { alert("Selecciona un jugador"); return; }
                 data.nombre = select.options[select.selectedIndex].text.split(' [ELO:')[0].trim();
-                // NO enviamos recaptchaToken para usuarios existentes
             } else {
                 data.nombre = document.getElementById('form-p-name').value;
                 data.email = document.getElementById('form-p-email').value;
                 data.elo = document.getElementById('form-p-elo').value;
-                const recaptchaToken = grecaptcha.getResponse(2) || grecaptcha.getResponse(1); // Intentamos obtener el captcha
+                const recaptchaToken = grecaptcha.getResponse(2) || grecaptcha.getResponse(1);
                 if(!recaptchaToken) { alert("Marca el reCAPTCHA"); return; }
                 data.recaptchaToken = recaptchaToken;
             }
-            
             const res = await API.inscribirJugador(currentTournamentId, data);
-            if (res && res.id) { 
-                closeModal('add-player-modal'); 
-                renderTournamentDetail(currentTournamentId); 
-            } else { 
-                alert("Error: " + (res?.message || "Inscripción fallida")); 
-            }
+            if (res && res.id) { closeModal('add-player-modal'); renderTournamentDetail(currentTournamentId); }
+            else { alert("Error: " + (res?.message || "Inscripción fallida")); }
         });
     }
 
@@ -201,7 +194,7 @@ function initForms() {
     }
 }
 
-// DASHBOARD Y LISTAS
+// DASHBOARD
 async function renderDashboard() {
     const tournaments = await API.getTorneos();
     const users = await API.getUsuarios();
@@ -258,6 +251,12 @@ async function renderTournamentDetail(id) {
     const user = JSON.parse(localStorage.getItem('currentUser') || '{}');
     const isAdmin = String(user.role).toUpperCase() === 'ADMIN';
 
+    // TITULO Y ESTADO A LA DERECHA
+    const header = document.querySelector('#tournament-detail-view .view-header');
+    if(header) {
+        header.style = 'display: flex; justify-content: space-between; align-items: center; width: 100%; flex-direction: row-reverse;';
+    }
+
     document.getElementById('detail-t-name').textContent = t.nombre;
     document.getElementById('detail-t-status').textContent = t.estado;
     
@@ -265,6 +264,7 @@ async function renderTournamentDetail(id) {
     const inscripciones = await inscRes.json();
     const partidas = await API.getPartidas(id);
 
+    const detailContainer = document.getElementById('tournament-detail-view');
     const oldBanner = document.getElementById('champion-banner-global');
     if(oldBanner) oldBanner.remove();
 
@@ -273,9 +273,26 @@ async function renderTournamentDetail(id) {
         if(winner) {
             const banner = document.createElement('div');
             banner.id = 'champion-banner-global';
-            banner.style = 'background: linear-gradient(90deg, #fbbf24, #f59e0b); color: white; padding: 25px; border-radius: 15px; text-align: center; margin: 0 auto 20px auto; font-weight: 800; font-size: 1.5rem; box-shadow: 0 10px 20px rgba(245, 158, 11, 0.4); border: 3px solid white; width: 100%; display: flex; justify-content: center; align-items: center;';
-            banner.innerHTML = `🏆 ¡EL GRAN CAMPEÓN ES: ${winner.usuario.username.toUpperCase()}! 🏆`;
-            document.getElementById('detail-t-actions').after(banner);
+            // Negative margins compensate for the 3rem side padding of .main-content
+            // so the banner bleeds edge-to-edge like a footer
+            banner.style = [
+                'background: linear-gradient(135deg, #f59e0b 0%, #fbbf24 50%, #f59e0b 100%)',
+                'color: white',
+                'padding: 40px 3rem',
+                'text-align: center',
+                'margin: 60px -3rem -2.5rem -3rem',   // break out of parent padding
+                'font-weight: 900',
+                'font-size: 2.2rem',
+                'letter-spacing: 0.03em',
+                'box-shadow: 0 -6px 30px rgba(245,158,11,0.35)',
+                'border-top: 5px solid white',
+                'border-radius: 0',
+                'display: block',
+                'width: calc(100% + 6rem)',            // compensate for -3rem*2
+                'box-sizing: border-box'
+            ].join(';');
+            banner.innerHTML = `🏆 &nbsp; ¡EL GRAN CAMPEÓN ES: ${winner.usuario.username.toUpperCase()}! &nbsp; 🏆`;
+            detailContainer.appendChild(banner);
         }
     }
 
@@ -283,7 +300,8 @@ async function renderTournamentDetail(id) {
     const addPlayerGroup = document.getElementById('btn-add-player-group');
 
     if (actions) {
-        actions.style = 'display: flex; justify-content: flex-end; align-items: center; gap: 10px; margin-bottom: 20px; width: 100%;';
+        // BOTONES A LA IZQUIERDA
+        actions.style = 'display: flex; justify-content: flex-start; align-items: center; gap: 10px; width: auto;';
         actions.innerHTML = '';
         
         const yaIniciado = partidas.length > 0 || t.estado === 'EN_CURSO';
@@ -360,7 +378,7 @@ function renderRounds(partidas, estado, tId, sistema, inscripciones) {
                     <div style="flex:2;">
                         <div>${bracketInfo}</div>
                         <span style="font-weight:600; color:${p.resultado==='1-0'?'#16a34a':'inherit'}">${p.blancas?.username || '?'}</span> vs 
-                        <span style="font-weight:600; color:${p.resultado==='0-1'?'#16a34a':'inherit'}">${p.negras?.username || 'BYE'}</span>
+                        <span style="font-weight:600; color:${p.resultado==='0-1'?'#16a34a':'inherit'}">${p.negras?.username || 'ESPERANDO...'}</span>
                     </div>
                     <div style="flex:1; text-align:right;">
                         <select onchange="setResult('${p.id}', this.value)" style="padding:4px; border-radius:6px; font-weight:bold; cursor:pointer;">

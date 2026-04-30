@@ -273,9 +273,25 @@ async function renderTournamentDetail(id) {
         if(winner) {
             const banner = document.createElement('div');
             banner.id = 'champion-banner-global';
-            banner.style = 'background: linear-gradient(90deg, #fbbf24, #f59e0b); color: white; padding: 35px; border-radius: 15px; text-align: center; margin: 50px 0 20px 0; font-weight: 800; font-size: 2rem; box-shadow: 0 10px 30px rgba(245, 158, 11, 0.5); border: 5px solid white; width: 100%; display: block; box-sizing: border-box; clear: both;';
-            banner.innerHTML = `🏆 ¡EL GRAN CAMPEÓN ES: ${winner.usuario.username.toUpperCase()}! 🏆`;
-            // Mover al final de todo el contenedor para que sea el cierre de la página
+            // Negative margins compensate for the 3rem side padding of .main-content
+            // so the banner bleeds edge-to-edge like a footer
+            banner.style = [
+                'background: linear-gradient(135deg, #f59e0b 0%, #fbbf24 50%, #f59e0b 100%)',
+                'color: white',
+                'padding: 40px 3rem',
+                'text-align: center',
+                'margin: 60px -3rem -2.5rem -3rem',   // break out of parent padding
+                'font-weight: 900',
+                'font-size: 2.2rem',
+                'letter-spacing: 0.03em',
+                'box-shadow: 0 -6px 30px rgba(245,158,11,0.35)',
+                'border-top: 5px solid white',
+                'border-radius: 0',
+                'display: block',
+                'width: calc(100% + 6rem)',            // compensate for -3rem*2
+                'box-sizing: border-box'
+            ].join(';');
+            banner.innerHTML = `🏆 &nbsp; ¡EL GRAN CAMPEÓN ES: ${winner.usuario.username.toUpperCase()}! &nbsp; 🏆`;
             detailContainer.appendChild(banner);
         }
     }
