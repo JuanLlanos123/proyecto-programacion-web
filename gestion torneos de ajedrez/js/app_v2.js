@@ -251,10 +251,10 @@ async function renderTournamentDetail(id) {
     const user = JSON.parse(localStorage.getItem('currentUser') || '{}');
     const isAdmin = String(user.role).toUpperCase() === 'ADMIN';
 
-    // TITULO Y ESTADO A LA DERECHA
+    // TITULO Y ESTADO A LA IZQUIERDA (HEADER NORMAL)
     const header = document.querySelector('#tournament-detail-view .view-header');
     if(header) {
-        header.style = 'display: flex; justify-content: space-between; align-items: center; width: 100%; flex-direction: row-reverse;';
+        header.style = 'display: flex; justify-content: space-between; align-items: center; width: 100%;';
     }
 
     document.getElementById('detail-t-name').textContent = t.nombre;
@@ -299,8 +299,8 @@ async function renderTournamentDetail(id) {
     const addPlayerGroup = document.getElementById('btn-add-player-group');
 
     if (actions) {
-        // BOTONES A LA IZQUIERDA
-        actions.style = 'display: flex; justify-content: flex-start; align-items: center; gap: 10px; width: auto;';
+        // BOTONES A LA DERECHA
+        actions.style = 'display: flex; justify-content: flex-end; align-items: center; gap: 10px; width: 100%;';
         actions.innerHTML = '';
         
         const yaIniciado = partidas.length > 0 || t.estado === 'EN_CURSO';
