@@ -14,6 +14,8 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 @Service
 public class EmparejamientoService {
@@ -53,7 +55,7 @@ public class EmparejamientoService {
         if(jugadores.size() % 2 != 0) {
             Usuario byeUser = new Usuario();
             byeUser.setId(-1L);
-            byeUser.setUsername("BYE");
+            byeUser.setUsername("DESCANSA");
             jugadores.add(byeUser);
         }
 
@@ -105,6 +107,14 @@ public class EmparejamientoService {
         for(Partida p : partidasExistentes) {
             if(p.getRondaNumero() > rondaActual) rondaActual = p.getRondaNumero();
         }
+        
+        // GUARD: No generar si la ronda actual no ha terminado
+        boolean rondaPendiente = partidasExistentes.stream()
+                .filter(p -> p.getRondaNumero() == rondaActual)
+                .anyMatch(p -> p.getResultado() == null || "P".equals(p.getResultado()));
+        
+        if (rondaPendiente && rondaActual > 0) return new ArrayList<>();
+
         int nuevaRonda = rondaActual + 1;
 
         List<Inscripcion> ordenados = new ArrayList<>(inscripciones);
@@ -121,7 +131,7 @@ public class EmparejamientoService {
         if(jugadoresDisponibles.size() % 2 != 0) {
             byeUser = new Usuario();
             byeUser.setId(-1L);
-            byeUser.setUsername("BYE");
+            byeUser.setUsername("DESCANSA");
         }
 
         List<Partida> partidasGeneradas = new ArrayList<>();
@@ -198,7 +208,7 @@ public class EmparejamientoService {
         if (jugadoresParaEstaRonda.size() % 2 != 0) {
             byeUser = new Usuario();
             byeUser.setId(-1L);
-            byeUser.setUsername("BYE");
+            byeUser.setUsername("DESCANSA");
         }
         List<Partida> partidasGeneradas = new ArrayList<>();
         while (!jugadoresParaEstaRonda.isEmpty()) {
@@ -246,6 +256,16 @@ public class EmparejamientoService {
             else if (derrotas == 1) losers.add(ins.getUsuario());
         }
 
+        // CASO ESPECIAL: GRAN FINAL (1 vs 1)
+        if (winners.size() == 1 && losers.size() == 1) {
+            Partida finalMatch = new Partida();
+            finalMatch.setTorneo(torneo);
+            finalMatch.setRondaNumero(nuevaRonda);
+            finalMatch.setBlancas(winners.get(0));
+            finalMatch.setNegras(losers.get(0));
+            return List.of(partidaRepository.save(finalMatch));
+        }
+
         List<Partida> nuevasPartidas = new ArrayList<>();
         nuevasPartidas.addAll(crearPartidas(torneo, nuevaRonda, winners));
         nuevasPartidas.addAll(crearPartidas(torneo, nuevaRonda, losers));
@@ -258,11 +278,24 @@ public class EmparejamientoService {
     private List<Partida> crearPartidas(Torneo torneo, int ronda, List<Usuario> jugadores) {
         List<Partida> generadas = new ArrayList<>();
         List<Usuario> pool = new ArrayList<>(jugadores);
+        
+        // Si solo hay un jugador en este pool y no es la gran final, descansa
+        if (pool.size() == 1) {
+            Partida p = new Partida();
+            p.setTorneo(torneo);
+            p.setRondaNumero(ronda);
+            p.setBlancas(pool.get(0));
+            p.setNegras(null);
+            p.setResultado("BYE");
+            generadas.add(partidaRepository.save(p));
+            return generadas;
+        }
+
         Usuario byeUser = null;
         if (pool.size() % 2 != 0) {
             byeUser = new Usuario();
             byeUser.setId(-1L);
-            byeUser.setUsername("BYE");
+            byeUser.setUsername("DESCANSA");
         }
         while (!pool.isEmpty()) {
             Usuario w = pool.remove(0);
@@ -287,9 +320,12 @@ public class EmparejamientoService {
     private int contarDerrotas(Long userId, List<Partida> historial) {
         int derrotas = 0;
         for (Partida p : historial) {
-            if (p.getResultado() == null || p.getResultado().equals("P") || p.getResultado().equals("BYE")) continue;
+            if (p.getResultado() == null || p.getResultado().equals("P")) continue;
             boolean isWhite = p.getBlancas() != null && p.getBlancas().getId().equals(userId);
             boolean isBlack = p.getNegras() != null && p.getNegras().getId().equals(userId);
+            
+            if ("BYE".equals(p.getResultado())) continue; // Un BYE no cuenta como derrota ni victoria para desempates de bracket
+
             if (isWhite && "0-1".equals(p.getResultado())) derrotas++;
             if (isBlack && "1-0".equals(p.getResultado())) derrotas++;
         }
@@ -312,7 +348,6 @@ public class EmparejamientoService {
         List<Inscripcion> inscripciones = inscripcionRepository.findByTorneoId(torneoId);
         List<Partida> partidas = partidaRepository.findByTorneoId(torneoId);
 
-        // Primera pasada: Calcular puntos
         for (Inscripcion ins : inscripciones) {
             double puntos = 0;
             int jugadas = 0;
@@ -354,10 +389,8 @@ public class EmparejamientoService {
             ins.setDerrotas(losses);
         }
 
-        // Save para asegurar que tenemos puntos actuales para el pase 2
         inscripcionRepository.saveAll(inscripciones);
 
-        // Segunda pasada: Calcular desempates
         for (Inscripcion ins : inscripciones) {
             double buchholz = 0;
             double sonnebornBerger = 0;

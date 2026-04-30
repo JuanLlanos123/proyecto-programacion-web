@@ -178,6 +178,17 @@ const API = {
         }
     },
 
+    /** Obtiene el número de partidas que están actualmente en juego */
+    async getActiveMatchesCount() {
+        try {
+            const response = await fetchWithAuth(`${API_BASE}/partidas/activas/count`);
+            return await response.json();
+        } catch (error) {
+            console.error("Error al obtener contador de partidas:", error);
+            return 0;
+        }
+    },
+
     // --- GESTIÓN DE USUARIOS ---
 
     /** Obtiene la lista de todos los usuarios del sistema */

@@ -28,9 +28,14 @@ public class SecurityConfig {
             .cors(cors -> cors.configurationSource(corsConfigurationSource()))
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
-                .requestMatchers("/", "/index.html", "/static/**", "/css/**", "/js/**", "/img/**").permitAll()
+                .requestMatchers("/", "/index.html", "/favicon.ico", "/static/**", "/css/**", "/js/**", "/img/**").permitAll()
                 .requestMatchers("/api/auth/**").permitAll()
                 .requestMatchers("/h2-console/**").permitAll()
+                // Permitir lectura pública de torneos, partidas e inscripciones
+                .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/torneos/**").permitAll()
+                .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/partidas/**").permitAll()
+                .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/usuarios/**").permitAll()
+                // Escritura solo para autenticados
                 .anyRequest().authenticated()
             )
             // Necesario para que la consola de H2 funcione correctamente dentro del iframe

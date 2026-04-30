@@ -19,6 +19,11 @@ public class PartidaController {
 
     @Autowired
     private EmparejamientoService emparejamientoService;
+    
+    @GetMapping("/activas/count")
+    public ResponseEntity<Long> countActiveMatches() {
+        return ResponseEntity.ok(partidaRepository.countByResultado("P"));
+    }
 
     @PutMapping("/{id}/resultado")
     public ResponseEntity<?> actualizarResultado(@PathVariable Long id, @RequestBody Map<String, String> body) {

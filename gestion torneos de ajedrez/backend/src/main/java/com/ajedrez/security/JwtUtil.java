@@ -17,7 +17,7 @@ public class JwtUtil {
     // En producción debe estar en application.properties.
     private static final String SECRET = "AjedrezPro2026GrandmasterSecretKeyParaJWTTokenMuySeguro!";
     private final Key key = Keys.hmacShaKeyFor(SECRET.getBytes());
-    private static final long EXPIRATION_TIME = 1000 * 60 * 60 * 24; // 24 horas
+    private static final long EXPIRATION_TIME = 1000L * 60 * 60 * 24 * 7; // 7 días
 
     public String generateToken(String username, String role) {
         return Jwts.builder()

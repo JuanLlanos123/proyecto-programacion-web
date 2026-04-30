@@ -170,14 +170,29 @@ function initForms() {
     if (formCreate) {
         formCreate.addEventListener('submit', async (e) => {
             e.preventDefault();
-            const nombre = document.getElementById('form-t-name').value;
-            const sistemaJuego = document.getElementById('form-t-sistema').value;
-            const t = await API.createTorneo({ nombre, descripcion: "Torneo de Ajedrez", sistemaJuego });
-            if(t) {
-                closeModal('create-tournament-modal');
-                renderDashboard();
-                renderTournamentList();
-                openTournamentDetail(t.id);
+            const btn = formCreate.querySelector('button[type="submit"]');
+            const originalText = btn.innerHTML;
+            
+            // Evitar doble envío
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i> Creando...';
+            
+            try {
+                const nombre = document.getElementById('form-t-name').value;
+                const sistemaJuego = document.getElementById('form-t-sistema').value;
+                const t = await API.createTorneo({ nombre, descripcion: "Torneo de Ajedrez", sistemaJuego });
+                if(t) {
+                    closeModal('create-tournament-modal');
+                    renderDashboard();
+                    renderTournamentList();
+                    openTournamentDetail(t.id);
+                }
+            } catch (err) {
+                console.error(err);
+                alert("Error al crear el torneo");
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = originalText;
             }
         });
     }
