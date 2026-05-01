@@ -127,8 +127,9 @@ public class EmparejamientoService {
         }
         
         // GUARD: No generar si la ronda actual no ha terminado
+        final int rondaFijada = rondaActual;
         boolean rondaPendiente = partidasExistentes.stream()
-                .filter(p -> p.getRondaNumero() == rondaActual)
+                .filter(p -> p.getRondaNumero() == rondaFijada)
                 .anyMatch(p -> p.getResultado() == null || "P".equals(p.getResultado()));
         
         if (rondaPendiente && rondaActual > 0) return new ArrayList<>();
