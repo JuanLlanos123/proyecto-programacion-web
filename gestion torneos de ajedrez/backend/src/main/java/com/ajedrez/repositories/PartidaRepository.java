@@ -7,4 +7,7 @@ import java.util.List;
 public interface PartidaRepository extends JpaRepository<Partida, Long> {
     List<Partida> findByTorneoId(Long torneoId);
     long countByResultado(String resultado);
+
+    @org.springframework.data.jpa.repository.Query("SELECT MAX(p.rondaNumero) FROM Partida p WHERE p.torneo.id = ?1")
+    Integer findMaxRondaByTorneoId(Long torneoId);
 }

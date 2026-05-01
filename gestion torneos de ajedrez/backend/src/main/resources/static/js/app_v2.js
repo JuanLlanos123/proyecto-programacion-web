@@ -387,7 +387,12 @@ function renderRounds(partidas, estado, tId, sistema, inscripciones) {
     if (!partidas.length) { container.innerHTML = '<div style="text-align:center; padding:2rem; color:gray;">No hay partidas aún.</div>'; return; }
     const rounds = {};
     partidas.forEach(p => { const r = p.rondaNumero || 1; if (!rounds[r]) rounds[r] = []; rounds[r].push(p); });
-    Object.keys(rounds).sort((a, b) => b - a).forEach(rNum => {
+    
+    const roundNums = Object.keys(rounds).map(Number);
+    const maxRound = Math.max(...roundNums);
+
+    roundNums.sort((a, b) => b - a).forEach(rNum => {
+        const isLocked = (estado === 'FINALIZADO') || (sistema !== 'ROUND_ROBIN' && rNum < maxRound);
         const div = document.createElement('div');
         div.className = 'round-section mt-4';
         div.style = 'background:white; padding:1.2rem; border-radius:12px; margin-bottom:1.5rem; box-shadow: 0 4px 6px rgba(0,0,0,0.05); border:1px solid var(--accent-light);';
@@ -410,7 +415,7 @@ function renderRounds(partidas, estado, tId, sistema, inscripciones) {
                         <span style="font-weight:600; color:${p.resultado==='0-1'?'#16a34a':'inherit'}">${p.negras?.username || 'ESPERANDO...'}</span>
                     </div>
                     <div style="flex:1; text-align:right;">
-                        <select ${estado === 'FINALIZADO' ? 'disabled' : ''} onchange="setResult('${p.id}', this.value)" style="padding:4px; border-radius:6px; font-weight:bold; cursor:pointer; ${estado === 'FINALIZADO' ? 'background:#f1f5f9; cursor:not-allowed;' : ''}">
+                        <select ${isLocked ? 'disabled' : ''} onchange="setResult('${p.id}', this.value)" style="padding:4px; border-radius:6px; font-weight:bold; cursor:pointer; ${isLocked ? 'background:#f1f5f9; cursor:not-allowed;' : ''}">
                             <option value="P" ${p.resultado==='P'?'selected':''}>P</option>
                             <option value="1-0" ${p.resultado==='1-0'?'selected':''}>1-0</option>
                             <option value="0.5-0.5" ${p.resultado==='0.5-0.5'?'selected':''}>½</option>

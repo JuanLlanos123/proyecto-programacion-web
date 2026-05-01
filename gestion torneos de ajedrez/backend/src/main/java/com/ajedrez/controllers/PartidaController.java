@@ -37,6 +37,14 @@ public class PartidaController {
             return ResponseEntity.badRequest().body("No se pueden modificar resultados de un torneo finalizado.");
         }
 
+        // Bloquear si no es la ronda actual (para Suizo/Eliminatoria)
+        if (!"ROUND_ROBIN".equals(partida.getTorneo().getSistemaJuego())) {
+            Integer maxRound = partidaRepository.findMaxRondaByTorneoId(partida.getTorneo().getId());
+            if (partida.getRondaNumero() < maxRound) {
+                return ResponseEntity.badRequest().body("Solo se pueden modificar resultados de la ronda actual.");
+            }
+        }
+
         partida.setResultado(resultado);
         partidaRepository.save(partida);
 
