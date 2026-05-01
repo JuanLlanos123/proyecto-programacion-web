@@ -1133,6 +1133,7 @@ window.initAnalysisBoard = function() {
     analysisBoard = Chessboard('analysis-board', {
         draggable: true,
         position: 'start',
+        pieceTheme: 'https://chessboardjs.com/img/chesspieces/wikipedia/{piece}.png',
         onDrop: (source, target) => {
             let move = analysisGame.move({ from: source, to: target, promotion: 'q' });
             if (move === null) return 'snapback';
