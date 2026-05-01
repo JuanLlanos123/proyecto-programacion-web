@@ -46,6 +46,9 @@ public class TorneoController {
     @Autowired
     private com.ajedrez.services.EmailService emailService;
 
+    @Autowired
+    private com.ajedrez.repositories.EloHistoryRepository eloHistoryRepository;
+
     // Template para enviar mensajes de WebSockets al frontend
     @Autowired
     private org.springframework.messaging.simp.SimpMessagingTemplate messagingTemplate;
@@ -92,9 +95,23 @@ public class TorneoController {
         List<Inscripcion> inscritos = inscripcionRepository.findByTorneoId(id);
         List<Partida> partidas = emparejamientoService.generarRondas(torneo, inscritos);
         
-        // Notificar a todos los clientes conectados
+        // Notificar a todos los clientes conectados vía WebSockets
         messagingTemplate.convertAndSend("/topic/notifications", "¡Se han generado nuevas rondas en el torneo: " + torneo.getNombre() + "!");
         
+        // Notificar a cada jugador por email de forma asíncrona para no bloquear la respuesta
+        new Thread(() -> {
+            for(Partida p : partidas) {
+                if(p.getBlancas() != null && p.getBlancas().getEmail() != null) {
+                    String opp = (p.getNegras() != null) ? p.getNegras().getUsername() : "DESCANSA (BYE)";
+                    emailService.sendRoundNotification(p.getBlancas().getEmail(), p.getBlancas().getUsername(), torneo.getNombre(), p.getRondaNumero(), opp);
+                }
+                if(p.getNegras() != null && p.getNegras().getEmail() != null) {
+                    String opp = (p.getBlancas() != null) ? p.getBlancas().getUsername() : "DESCANSA (BYE)";
+                    emailService.sendRoundNotification(p.getNegras().getEmail(), p.getNegras().getUsername(), torneo.getNombre(), p.getRondaNumero(), opp);
+                }
+            }
+        }).start();
+
         return ResponseEntity.ok(partidas);
     }
 
@@ -212,7 +229,34 @@ public class TorneoController {
         return torneoRepository.findById(id).map(torneo -> {
             torneo.setEstado("FINALIZADO");
             torneo.setFechaFin(new java.util.Date());
-            return ResponseEntity.ok(torneoRepository.save(torneo));
+            Torneo saved = torneoRepository.save(torneo);
+            
+            // Actualizar ELO de participantes
+            List<Inscripcion> inscripciones = inscripcionRepository.findByTorneoId(id);
+            for(Inscripcion ins : inscripciones) {
+                Usuario u = ins.getUsuario();
+                int oldElo = u.getEloRating();
+                double pts = ins.getPuntosAcumulados();
+                int matches = ins.getPartidasJugadas();
+                
+                if (matches > 0) {
+                    // Lógica simple: K=20, Puntos esperados = 0.5 por partida
+                    int delta = (int) ((pts - (matches * 0.5)) * 20);
+                    int newElo = oldElo + delta;
+                    if(newElo < 100) newElo = 100;
+                    
+                    u.setEloRating(newElo);
+                    usuarioRepository.save(u);
+                    
+                    // Guardar en historial
+                    eloHistoryRepository.save(new com.ajedrez.models.EloHistory(u, newElo, "Torneo Finalizado: " + torneo.getNombre()));
+                }
+            }
+            
+            // Notificar vía WebSockets que el torneo terminó
+            messagingTemplate.convertAndSend("/topic/notifications", "Torneo Finalizado: " + torneo.getNombre());
+            
+            return ResponseEntity.ok(saved);
         }).orElse(ResponseEntity.notFound().build());
     }
 

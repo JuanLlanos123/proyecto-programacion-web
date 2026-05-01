@@ -245,6 +245,32 @@ const API = {
             console.error("Fallo en el registro:", error);
             return null;
         }
+    },
+
+    /** Obtiene estadísticas detalladas de un usuario */
+    async getUsuarioStats(userId) {
+        try {
+            const response = await fetchWithAuth(`${API_BASE}/usuarios/${userId}/stats`);
+            return await response.json();
+        } catch (error) {
+            console.error("Error al obtener stats del usuario:", error);
+            return null;
+        }
+    },
+
+    /** Actualiza el ELO de un usuario manualmente */
+    async updateUsuarioELO(userId, elo) {
+        try {
+            const response = await fetchWithAuth(`${API_BASE}/usuarios/${userId}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ eloRating: elo })
+            });
+            return await response.json();
+        } catch (error) {
+            console.error("Error al actualizar ELO:", error);
+            return null;
+        }
     }
 };
 

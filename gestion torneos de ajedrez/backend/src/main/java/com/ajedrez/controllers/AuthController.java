@@ -23,6 +23,9 @@ public class AuthController {
     private JwtUtil jwtUtil;
 
     @Autowired
+    private com.ajedrez.repositories.EloHistoryRepository eloHistoryRepository;
+
+    @Autowired
     private RecaptchaService recaptchaService;
 
     @PostMapping("/login")
@@ -72,6 +75,9 @@ public class AuthController {
         // Save raw password for basic logic
         usuario.setPasswordHash(usuario.getPasswordHash());
         Usuario savedUser = usuarioRepository.save(usuario);
+        
+        // Registrar historial inicial
+        eloHistoryRepository.save(new com.ajedrez.models.EloHistory(savedUser, savedUser.getEloRating(), "Registro inicial"));
         
         String token = jwtUtil.generateToken(savedUser.getUsername(), savedUser.getRole() != null ? savedUser.getRole() : "PLAYER");
         

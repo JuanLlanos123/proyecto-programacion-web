@@ -14,6 +14,8 @@ document.addEventListener('DOMContentLoaded', () => {
     initNavigation();
     initModals();
     initForms();
+    initSearchFilters();
+    initTheme();
     renderDashboard();
     renderTournamentList();
 });
@@ -81,6 +83,146 @@ window.closeModal = function(modalId) {
     const modal = document.getElementById(modalId);
     if (modal) modal.classList.remove('active'); 
 };
+
+let eloChartInstance = null;
+
+window.showPlayerStats = async function(userId) {
+    const data = await API.getUsuarioStats(userId);
+    if (!data) return;
+
+    document.getElementById('stat-player-name-new').textContent = data.usuario.username;
+    document.getElementById('stat-player-email').textContent = data.usuario.email;
+    document.getElementById('stat-nemesis').textContent = data.nemesis || 'Ninguno';
+
+    // Calcular victorias/tablas/derrotas
+    let wins = 0, draws = 0, losses = 0;
+    data.partidas.forEach(p => {
+        const isWhite = p.blancas && p.blancas.id === userId;
+        if (p.resultado === '1-0') isWhite ? wins++ : losses++;
+        else if (p.resultado === '0-1') isWhite ? losses++ : wins++;
+        else if (p.resultado === '0.5-0.5') draws++;
+    });
+
+    document.getElementById('stat-win').textContent = wins;
+    document.getElementById('stat-draw').textContent = draws;
+    document.getElementById('stat-loss').textContent = losses;
+
+    const tbody = document.querySelector('#stat-matches-table tbody');
+    tbody.innerHTML = data.partidas.map(p => {
+        const isWhite = p.blancas && p.blancas.id === userId;
+        const opponent = isWhite ? (p.negras ? p.negras.username : 'BYE') : (p.blancas ? p.blancas.username : 'BYE');
+        let resClass = 'text-muted';
+        let resText = p.resultado;
+        if ((isWhite && p.resultado === '1-0') || (!isWhite && p.resultado === '0-1')) resClass = 'text-win';
+        else if ((isWhite && p.resultado === '0-1') || (!isWhite && p.resultado === '1-0')) resClass = 'text-loss';
+
+        return `<tr>
+            <td style="padding:8px;">${p.torneo ? p.torneo.nombre : '---'}</td>
+            <td>${opponent}</td>
+            <td class="${resClass}" style="font-weight:bold;">${resText}</td>
+            <td>${p.rondaNumero || 1}</td>
+        </tr>`;
+    }).join('');
+
+    renderEloChart(data.eloHistory);
+
+    // Renderizar Trofeos
+    const trophyContainer = document.getElementById('stat-trophies-container');
+    if (trophyContainer) {
+        trophyContainer.innerHTML = '';
+        if (data.trofeos && data.trofeos.length > 0) {
+            data.trofeos.forEach(t => {
+                const medal = t.rank == '1' ? '🥇' : (t.rank == '2' ? '🥈' : '🥉');
+                const color = t.rank == '1' ? '#fbbf24' : (t.rank == '2' ? '#94a3b8' : '#b45309');
+                const label = t.rank == '1' ? 'Campeón' : (t.rank == '2' ? 'Subcampeón' : '3er Lugar');
+                
+                const div = document.createElement('div');
+                div.style = `background: var(--surface-card); border: 1.5px solid ${color}; padding: 8px 12px; border-radius: 20px; display: flex; align-items: center; gap: 8px; font-size: 0.85rem; box-shadow: 0 2px 4px rgba(0,0,0,0.05);`;
+                div.innerHTML = `<span>${medal}</span> <div style="display:flex; flex-direction:column;"><strong style="color:${color}">${label}</strong><small style="font-size:0.7rem; color:var(--text-muted);">${t.torneo || 'Torneo'}</small></div>`;
+                trophyContainer.appendChild(div);
+            });
+            document.getElementById('trophy-section').style.display = 'block';
+        } else {
+            trophyContainer.innerHTML = '<div style="color:var(--text-muted); font-size:0.85rem; font-style:italic;">Aún no ha ganado trofeos en este sistema.</div>';
+        }
+    }
+
+    openModal('player-stats-modal');
+}
+
+function renderEloChart(history) {
+    const canvas = document.getElementById('eloChart');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (eloChartInstance) eloChartInstance.destroy();
+
+    const labels = history.map(h => new Date(h.fecha).toLocaleDateString());
+    const points = history.map(h => h.elo);
+
+    const isDark = document.body.classList.contains('dark-theme');
+    const textColor = isDark ? '#f0eade' : '#2D2C2A';
+    const gridColor = isDark ? '#2d1f1a' : '#f1f5f9';
+    const accentColor = '#8b5a2b';
+
+    eloChartInstance = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: labels,
+            datasets: [{
+                label: 'ELO',
+                data: points,
+                borderColor: accentColor,
+                backgroundColor: isDark ? 'rgba(139, 90, 43, 0.2)' : 'rgba(139, 90, 43, 0.1)',
+                borderWidth: 3,
+                tension: 0.3,
+                fill: true,
+                pointRadius: 4,
+                pointBackgroundColor: accentColor
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { 
+                legend: { display: false },
+                tooltip: {
+                    backgroundColor: isDark ? '#1c1512' : '#FFFFFF',
+                    titleColor: isDark ? '#f9f7f2' : '#000',
+                    bodyColor: isDark ? '#f9f7f2' : '#000',
+                    borderColor: accentColor,
+                    borderWidth: 1
+                }
+            },
+            scales: {
+                y: { 
+                    beginAtZero: false, 
+                    grid: { color: gridColor },
+                    ticks: { color: textColor }
+                },
+                x: { 
+                    grid: { display: false },
+                    ticks: { color: textColor }
+                }
+            }
+        }
+    });
+}
+
+function initSearchFilters() {
+    const searchT = document.getElementById('search-tournaments');
+    const filterSys = document.getElementById('filter-system');
+    const filterStatus = document.getElementById('filter-status');
+
+    if (searchT) searchT.addEventListener('input', () => renderTournamentList());
+    if (filterSys) filterSys.addEventListener('change', () => renderTournamentList());
+    if (filterStatus) filterStatus.addEventListener('change', () => renderTournamentList());
+
+    const searchU = document.getElementById('search-users');
+    if (searchU) searchU.addEventListener('input', () => renderUsers());
+
+    const searchP = document.getElementById('search-players');
+    if (searchP) searchP.addEventListener('input', () => renderPlayersView());
+}
 
 function initModals() {
     document.querySelectorAll('.modal-overlay').forEach(modal => {
@@ -209,42 +351,65 @@ async function renderDashboard() {
     renderGlobalRanking();
 }
 
-async function renderGlobalRanking() {
-    const users = await API.getUsuarios();
-    const tbody = document.querySelector('#global-ranking-table tbody');
-    if(!tbody) return;
-    const sorted = [...users].sort((a, b) => (b.eloRating || 0) - (a.eloRating || 0));
-    tbody.innerHTML = sorted.map((u, i) => {
-        let pos = `#${i+1}`;
-        let style = '';
-        if(i === 0) { pos = '🥇 Oro'; style = 'background:rgba(251,191,36,0.15); border-left:5px solid #fbbf24; font-weight:bold;'; }
-        else if(i === 1) { pos = '🥈 Plata'; style = 'background:rgba(148,163,184,0.15); border-left:5px solid #94a3b8;'; }
-        else if(i === 2) { pos = '🥉 Bronce'; style = 'background:rgba(180,83,9,0.15); border-left:5px solid #b45309;'; }
-        const crown = String(u.role).toUpperCase() === 'ADMIN' ? '👑' : '';
-        return `<tr style="${style}"><td style="font-weight:700">${pos}</td><td>${u.username} ${crown}</td><td>${u.role || 'PLAYER'}</td><td style="text-align:right"><strong>${u.eloRating}</strong></td></tr>`;
-    }).join('');
-}
-
 async function renderTournamentList() {
-    const tList = await API.getTorneos();
-    const lc = document.getElementById('all-tournaments-list');
-    lc.innerHTML = '';
-    [...tList].reverse().forEach(t => lc.appendChild(createTournamentUIItem(t)));
+    const list = document.getElementById('all-tournaments-list');
+    if (!list) return;
+    
+    let torneos = await API.getTorneos();
+    
+    // Aplicar filtros
+    const search = document.getElementById('search-tournaments')?.value.toLowerCase() || '';
+    const sys = document.getElementById('filter-system')?.value || '';
+    const stat = document.getElementById('filter-status')?.value || '';
+
+    torneos = torneos.filter(t => {
+        const name = t.nombre || "";
+        const matchesSearch = name.toLowerCase().includes(search);
+        const matchesSys = !sys || t.sistemaJuego === sys;
+        const matchesStat = !stat || t.estado === stat;
+        return matchesSearch && matchesSys && matchesStat;
+    });
+
+    if (torneos.length === 0) {
+        list.innerHTML = '<div style="text-align:center; padding:2rem; color:gray;">No se encontraron torneos con estos filtros.</div>';
+        return;
+    }
+
+    list.innerHTML = torneos.map(t => {
+        const date = t.fechaCreacion ? new Date(t.fechaCreacion).toLocaleDateString() : '---';
+        const badgeClass = t.estado === 'PENDIENTE' ? 'status-pending' : (t.estado === 'EN_CURSO' ? 'status-active' : 'status-completed');
+        return `
+            <div class="tournament-item mb-2">
+                <div class="tournament-info">
+                    <h4>${t.nombre}</h4>
+                    <div style="font-size:0.85rem; color:var(--text-muted);">
+                        <i class="fa-solid fa-chess-board"></i> ${t.sistemaJuego} • <i class="fa-regular fa-calendar"></i> ${date}
+                    </div>
+                </div>
+                <div style="display:flex; align-items:center; gap:15px;">
+                    <span class="status-badge ${badgeClass}">${t.estado}</span>
+                    <button class="btn btn-primary" onclick="openTournamentDetail('${t.id}')">Entrar</button>
+                </div>
+            </div>`;
+    }).join('');
 }
 
 function createTournamentUIItem(t) {
     const div = document.createElement('div');
     div.className = 'tournament-item';
-    div.style = 'display:flex; justify-content:space-between; align-items:center; background:white; padding:1.2rem; border-radius:12px; margin-bottom:0.8rem; box-shadow:0 2px 4px rgba(0,0,0,0.05); border-left:4px solid var(--accent-color);';
     let badgeClass = t.estado === 'EN_CURSO' ? 'status-active' : (t.estado === 'FINALIZADO' ? 'status-completed' : 'status-pending');
     div.innerHTML = `
         <div><h4 style="margin:0">${t.nombre}</h4><small>${t.sistemaJuego} • <span class="status-badge ${badgeClass}" style="padding:1px 6px; font-size:10px;">${t.estado}</span></small></div>
-        <button class="btn btn-primary" onclick="openTournamentDetail('${t.id}')">ENTRAR</button>`;
+        <button class="btn btn-primary" onclick="openTournamentDetail('${t.id}')">Entrar</button>`;
     return div;
 }
 
+let currentTournamentData = null;
+
 window.openTournamentDetail = async function(id) {
-    currentTournamentId = id; showView('tournament-detail-view'); renderTournamentDetail(id);
+    currentTournamentData = await API.getTorneo(id);
+    showView('tournament-detail-view'); 
+    renderTournamentDetail(id);
 };
 
 async function renderTournamentDetail(id) {
@@ -270,7 +435,11 @@ async function renderTournamentDetail(id) {
     if(oldBanner) oldBanner.remove();
 
     if (t.estado === 'FINALIZADO') {
-        const winner = [...inscripciones].sort((a,b) => b.puntosAcumulados - a.puntosAcumulados)[0];
+        const winner = [...inscripciones].sort((a,b) => {
+            if(b.puntosAcumulados !== a.puntosAcumulados) return b.puntosAcumulados - a.puntosAcumulados;
+            if((b.buchholz || 0) !== (a.buchholz || 0)) return (b.buchholz || 0) - (a.buchholz || 0);
+            return (b.sonnebornBerger || 0) - (a.sonnebornBerger || 0);
+        })[0];
         if(winner) {
             const bannerWrapper = document.createElement('div');
             bannerWrapper.id = 'champion-banner-global';
@@ -357,11 +526,139 @@ async function renderTournamentDetail(id) {
         if (isAdmin) {
             actions.innerHTML += `<button class="btn" style="background:#dc2626; color:white; padding:10px 20px; border-radius:8px;" onclick="deleteTournament('${id}')"><i class="fa-solid fa-trash-can"></i> ELIMINAR</button>`;
         }
+
+        // Botón PDF si ya ha iniciado o terminado
+        if (yaIniciado || t.estado === 'FINALIZADO') {
+            const pdfBtn = `<button class="btn" style="background:#1e293b; color:white; border:none; padding:10px 15px; border-radius:8px; margin-right:5px;" onclick="exportTournamentPDF()"><i class="fa-solid fa-file-pdf"></i> PDF</button>`;
+            actions.innerHTML = pdfBtn + actions.innerHTML;
+        }
     }
     
     renderPlayers(inscripciones, t.estado, id);
     renderRounds(partidas, t.estado, id, t.sistemaJuego, inscripciones);
     renderStandings(inscripciones, t.estado);
+    renderBrackets(partidas, t.sistemaJuego);
+}
+
+function renderBrackets(partidas, sistema) {
+    const container = document.getElementById('bracket-visualization');
+    const tabBtn = document.getElementById('btn-tab-bracket');
+    
+    if (!container) return;
+    
+    const isElimination = sistema === 'ELIMINATORIA' || sistema === 'DOBLE_ELIMINATORIA';
+    if (!isElimination) {
+        if(tabBtn) tabBtn.style.display = 'none';
+        return;
+    }
+    
+    if(tabBtn) tabBtn.style.display = 'block';
+    container.innerHTML = '';
+
+    if (partidas.length === 0) {
+        container.innerHTML = '<div style="text-align:center; color:gray; padding:3rem;"><i class="fa-solid fa-sitemap" style="font-size:3rem; display:block; margin-bottom:1rem; opacity:0.2;"></i>El cuadro visual se generará automáticamente al iniciar el torneo.</div>';
+        return;
+    }
+
+    // Para Doble Eliminatoria, intentamos separar en Ganadores y Perdedores si es posible
+    if (sistema === 'DOBLE_ELIMINATORIA') {
+        const winnersSection = document.createElement('div');
+        winnersSection.innerHTML = '<h3 style="margin-bottom:1rem; color:var(--win-color); border-bottom:1px solid var(--accent-light);">Cuadro de Ganadores (Winners Bracket)</h3>';
+        const losersSection = document.createElement('div');
+        losersSection.innerHTML = '<h3 style="margin-top:2rem; margin-bottom:1rem; color:var(--loss-color); border-bottom:1px solid var(--accent-light);">Cuadro de Perdedores (Losers Bracket)</h3>';
+        
+        container.appendChild(winnersSection);
+        renderBracketType(partidas, winnersSection, 'WINNERS');
+        
+        container.appendChild(losersSection);
+        renderBracketType(partidas, losersSection, 'LOSERS');
+    } else {
+        renderBracketType(partidas, container, 'SINGLE');
+    }
+}
+
+function renderBracketType(partidas, targetContainer, type) {
+    // Función auxiliar para calcular derrotas de un jugador antes de una ronda específica
+    const getLossesAtRound = (userId, round, allPartidas) => {
+        return allPartidas.filter(p => {
+            if ((p.rondaNumero || 1) >= round) return false;
+            if (p.resultado === 'P' || p.resultado === 'BYE') return false;
+            const isWhite = p.blancas && p.blancas.id === userId;
+            const isBlack = p.negras && p.negras.id === userId;
+            if (isWhite && p.resultado === '0-1') return true;
+            if (isBlack && p.resultado === '1-0') return true;
+            return false;
+        }).length;
+    };
+
+    const rounds = {};
+    partidas.forEach(p => {
+        const rNum = p.rondaNumero || 1;
+        
+        // En doble eliminatoria, filtramos qué partidas mostrar en cada sección
+        if (type === 'WINNERS' || type === 'LOSERS') {
+            const bLosses = p.blancas ? getLossesAtRound(p.blancas.id, rNum, partidas) : 0;
+            const nLosses = p.negras ? getLossesAtRound(p.negras.id, rNum, partidas) : 0;
+            
+            if (type === 'WINNERS') {
+                // Ganadores: Ambos jugadores deben tener 0 derrotas al iniciar la ronda
+                // O si es la Gran Final (donde uno tiene 0 y el otro 1), la mostramos en Ganadores
+                const isGranFinal = (bLosses === 0 && nLosses === 1) || (bLosses === 1 && nLosses === 0);
+                if (bLosses > 0 || (nLosses > 0 && !isGranFinal)) return;
+            } else if (type === 'LOSERS') {
+                // Perdedores: Al menos uno tiene que tener 1 derrota al iniciar la ronda
+                // Pero NO mostramos la gran final aquí (esa va en Winners)
+                const isGranFinal = (bLosses === 0 && nLosses === 1) || (bLosses === 1 && nLosses === 0);
+                if (isGranFinal || (bLosses === 0 && (p.negras ? nLosses === 0 : true))) return;
+            }
+        }
+
+        if (!rounds[rNum]) rounds[rNum] = [];
+        rounds[rNum].push(p);
+    });
+
+    const bracketWrapper = document.createElement('div');
+    bracketWrapper.className = 'bracket-container';
+
+    Object.keys(rounds).sort((a,b) => a - b).forEach(rNum => {
+        const roundDiv = document.createElement('div');
+        roundDiv.className = 'bracket-round';
+        
+        const title = document.createElement('div');
+        title.className = 'bracket-round-title';
+        title.innerHTML = `<i class="fa-solid fa-circle"></i> Ronda ${rNum}`;
+        roundDiv.appendChild(title);
+
+        rounds[rNum].forEach(p => {
+            const matchDiv = document.createElement('div');
+            matchDiv.className = 'bracket-match';
+            
+            const p1Winner = p.resultado === '1-0' || p.resultado === 'BYE';
+            const p2Winner = p.resultado === '0-1';
+            const isDraw = p.resultado === '0.5-0.5';
+            const isBye = p.resultado === 'BYE';
+
+            matchDiv.innerHTML = `
+                <div class="bracket-player ${p1Winner ? 'winner' : ''}" onclick="if('${p.blancas?.id}') showPlayerStats('${p.blancas?.id}')" style="cursor:pointer;">
+                    <span style="display:flex; align-items:center; gap:8px;">
+                        <i class="fa-regular fa-user" style="font-size:0.7rem; opacity:0.5;"></i>
+                        ${p.blancas ? p.blancas.username : '<span class="bracket-empty">?</span>'}
+                    </span>
+                    <span class="bracket-score">${p.resultado === 'BYE' ? 'W' : (p1Winner ? '1' : (isDraw ? '½' : '0'))}</span>
+                </div>
+                <div class="bracket-player ${p2Winner ? 'winner' : ''}" onclick="if('${p.negras?.id}') showPlayerStats('${p.negras?.id}')" style="cursor:pointer;">
+                    <span style="display:flex; align-items:center; gap:8px;">
+                        <i class="fa-regular fa-user" style="font-size:0.7rem; opacity:0.5;"></i>
+                        ${p.negras ? p.negras.username : (isBye ? '<span class="bracket-empty">DESCANSA (BYE)</span>' : '<span class="bracket-empty">ESPERANDO...</span>')}
+                    </span>
+                    <span class="bracket-score">${p2Winner ? '1' : (isDraw ? '½' : '0')}</span>
+                </div>
+            `;
+            roundDiv.appendChild(matchDiv);
+        });
+        bracketWrapper.appendChild(roundDiv);
+    });
+    targetContainer.appendChild(bracketWrapper);
 }
 
 window.deleteTournament = async function(id) {
@@ -372,7 +669,7 @@ function renderPlayers(inscripciones, estado, tId) {
     const tbody = document.querySelector('#players-table tbody');
     if(!tbody) return;
     tbody.innerHTML = inscripciones.map(ins => `
-        <tr><td><strong>${ins.usuario.username}</strong></td><td>${ins.usuario.eloRating}</td>
+        <tr><td><a href="javascript:void(0)" onclick="showPlayerStats('${ins.usuario.id}')" style="text-decoration:none; color:var(--accent-color); font-weight:600;">${ins.usuario.username}</a></td><td>${ins.usuario.eloRating}</td>
             <td style="text-align:right">${estado === 'PENDIENTE' ? `<button class="btn" style="color:red; background:none;" onclick="removePlayer('${tId}', '${ins.id}')"><i class="fa-solid fa-trash"></i></button>` : ''}</td>
         </tr>`).join('');
 }
@@ -395,7 +692,7 @@ function renderRounds(partidas, estado, tId, sistema, inscripciones) {
         const isLocked = (estado === 'FINALIZADO') || (sistema !== 'ROUND_ROBIN' && rNum < maxRound);
         const div = document.createElement('div');
         div.className = 'round-section mt-4';
-        div.style = 'background:white; padding:1.2rem; border-radius:12px; margin-bottom:1.5rem; box-shadow: 0 4px 6px rgba(0,0,0,0.05); border:1px solid var(--accent-light);';
+        div.style = 'background:var(--surface-card); padding:1.2rem; border-radius:12px; margin-bottom:1.5rem; box-shadow: 0 4px 6px rgba(0,0,0,0.05); border:1px solid var(--accent-light);';
         div.innerHTML = `<h4 style="color:var(--accent-color); border-bottom:2px solid var(--accent-light); padding-bottom:0.5rem; margin-bottom:1rem;">Ronda ${rNum}</h4>`;
         rounds[rNum].forEach(p => {
             let bracketInfo = '';
@@ -411,8 +708,8 @@ function renderRounds(partidas, estado, tId, sistema, inscripciones) {
                 <div style="display:flex; justify-content:space-between; align-items:center; padding:12px; border-bottom:1px solid #eee; ${rowStyle}">
                     <div style="flex:2;">
                         <div>${bracketInfo}</div>
-                        <span style="font-weight:600; color:${p.resultado==='1-0'?'#16a34a':'inherit'}">${p.blancas?.username || '?'}</span> vs 
-                        <span style="font-weight:600; color:${p.resultado==='0-1'?'#16a34a':'inherit'}">${p.negras?.username || 'ESPERANDO...'}</span>
+                        <span style="font-weight:600; cursor:pointer; color:${p.resultado==='1-0'?'#16a34a':'var(--accent-color)'}" onclick="showPlayerStats('${p.blancas?.id}')">${p.blancas?.username || '?'}</span> vs 
+                        <span style="font-weight:600; cursor:pointer; color:${p.resultado==='0-1'?'#16a34a':'var(--accent-color)'}" onclick="showPlayerStats('${p.negras?.id}')">${p.negras?.username || 'ESPERANDO...'}</span>
                     </div>
                     <div style="flex:1; text-align:right;">
                         <select ${isLocked ? 'disabled' : ''} onchange="setResult('${p.id}', this.value)" style="padding:4px; border-radius:6px; font-weight:bold; cursor:pointer; ${isLocked ? 'background:#f1f5f9; cursor:not-allowed;' : ''}">
@@ -453,7 +750,7 @@ function renderStandings(inscripciones, estado) {
         if(i === 0) { pos = '🥇 Oro'; style = 'background:rgba(251,191,36,0.15); border-left:5px solid #fbbf24; font-weight:bold;'; }
         else if(i === 1) { pos = '🥈 Plata'; style = 'background:rgba(148,163,184,0.15); border-left:5px solid #94a3b8;'; }
         else if(i === 2) { pos = '🥉 Bronce'; style = 'background:rgba(180,83,9,0.15); border-left:5px solid #b45309;'; }
-        return `<tr style="${style}"><td>${pos}</td><td><strong>${ins.usuario.username}</strong></td><td><span style="color:var(--accent-color); font-weight:800;">${ins.puntosAcumulados}</span></td><td>${ins.buchholz || 0}</td><td>${ins.sonnebornBerger || 0}</td><td>${ins.partidasJugadas}</td></tr>`;
+        return `<tr style="${style}"><td>${pos}</td><td><a href="javascript:void(0)" onclick="showPlayerStats('${ins.usuario.id}')" style="text-decoration:none; color:var(--text-main); font-weight:700;">${ins.usuario.username}</a></td><td><span style="color:var(--accent-color); font-weight:800;">${ins.puntosAcumulados}</span></td><td>${ins.buchholz || 0}</td><td>${ins.sonnebornBerger || 0}</td><td>${ins.partidasJugadas}</td></tr>`;
     }).join('');
 }
 
@@ -477,17 +774,37 @@ window.togglePlayerTab = function(tab) {
 };
 
 async function renderUsers() {
-    const users = await API.getUsuarios();
-    const admins = users.filter(u => String(u.role).toUpperCase() === 'ADMIN');
+    let users = await API.getUsuarios();
+    const search = document.getElementById('search-users')?.value.toLowerCase() || '';
+    
+    let admins = users.filter(u => String(u.role).toUpperCase() === 'ADMIN');
+    
+    if (search) {
+        admins = admins.filter(u => 
+            u.username.toLowerCase().includes(search) || 
+            u.email.toLowerCase().includes(search)
+        );
+    }
+
     const tbody = document.querySelector('#global-users-table tbody');
-    if(tbody) tbody.innerHTML = admins.map(u => `<tr><td>${u.username} 👑</td><td>${u.email}</td><td>${u.eloRating}</td><td>ADMIN</td><td><div style="display:flex; gap:5px;"><button class="btn btn-secondary" onclick="openEditEloModal('${u.id}', '${u.username}', ${u.eloRating})">ELO</button><button class="btn" style="background:#dc2626; color:white; padding:4px 8px; border-radius:6px;" onclick="deleteUser('${u.id}', '${u.username}')"><i class="fa-solid fa-trash-can"></i></button></div></td></tr>`).join('');
+    if(tbody) tbody.innerHTML = admins.map(u => `<tr><td><a href="javascript:void(0)" onclick="showPlayerStats('${u.id}')" style="text-decoration:none; color:var(--accent-color); font-weight:600;">${u.username}</a> 👑</td><td>${u.email}</td><td>${u.eloRating}</td><td>ADMIN</td><td><div style="display:flex; gap:5px;"><button class="btn btn-secondary" style="padding:4px 8px; font-size:0.8rem;" onclick="showPlayerStats('${u.id}')"><i class="fa-solid fa-user-tag"></i> Ficha</button><button class="btn btn-secondary" style="padding:4px 8px;" onclick="openEditEloModal('${u.id}', '${u.username}', ${u.eloRating})">ELO</button><button class="btn" style="background:#dc2626; color:white; padding:4px 8px; border-radius:6px;" onclick="deleteUser('${u.id}', '${u.username}')"><i class="fa-solid fa-trash-can"></i></button></div></td></tr>`).join('');
 }
 
 async function renderPlayersView() {
-    const users = await API.getUsuarios();
-    const players = users.filter(u => String(u.role).toUpperCase() !== 'ADMIN');
+    let users = await API.getUsuarios();
+    const search = document.getElementById('search-players')?.value.toLowerCase() || '';
+    
+    let players = users.filter(u => String(u.role).toUpperCase() !== 'ADMIN');
+    
+    if (search) {
+        players = players.filter(u => 
+            u.username.toLowerCase().includes(search) || 
+            u.email.toLowerCase().includes(search)
+        );
+    }
+
     const tbody = document.querySelector('#global-players-table tbody');
-    if(tbody) tbody.innerHTML = players.map(p => `<tr><td>${p.username}</td><td>${p.email}</td><td>${p.eloRating}</td><td>${p.role || 'PLAYER'}</td><td><div style="display:flex; gap:5px;"><button class="btn btn-secondary" onclick="openEditEloModal('${p.id}', '${p.username}', ${p.eloRating})">ELO</button><button class="btn" style="background:#dc2626; color:white; padding:4px 8px; border-radius:6px;" onclick="deleteUser('${p.id}', '${p.username}')"><i class="fa-solid fa-trash-can"></i></button></div></td></tr>`).join('');
+    if(tbody) tbody.innerHTML = players.map(p => `<tr><td><a href="javascript:void(0)" onclick="showPlayerStats('${p.id}')" style="text-decoration:none; color:var(--accent-color); font-weight:600;">${p.username}</a></td><td>${p.email}</td><td>${p.eloRating}</td><td>${p.role || 'PLAYER'}</td><td><div style="display:flex; gap:5px;"><button class="btn btn-secondary" style="padding:4px 8px; font-size:0.8rem;" onclick="showPlayerStats('${p.id}')"><i class="fa-solid fa-user-tag"></i> Ficha</button><button class="btn btn-secondary" style="padding:4px 8px;" onclick="openEditEloModal('${p.id}', '${p.username}', ${p.eloRating})">ELO</button><button class="btn" style="background:#dc2626; color:white; padding:4px 8px; border-radius:6px;" onclick="deleteUser('${p.id}', '${p.username}')"><i class="fa-solid fa-trash-can"></i></button></div></td></tr>`).join('');
 }
 
 window.deleteUser = async function(id, name) {
@@ -517,4 +834,152 @@ function connectWebSocket() {
 window.toggleRoundsInput = function(val) {
     const group = document.getElementById('group-t-rondas');
     if (group) group.style.display = (val === 'SUIZO') ? 'block' : 'none';
+};
+
+async function renderGlobalRanking() {
+    const users = await API.getUsuarios();
+    const sorted = [...users].sort((a, b) => (b.eloRating || 0) - (a.eloRating || 0));
+    const tbody = document.querySelector('#global-ranking-table tbody');
+    if (tbody) {
+        tbody.innerHTML = sorted.map((u, i) => {
+            let pos = `#${i + 1}`;
+            let style = '';
+            if(i === 0) { pos = '🥇 Oro'; style = 'background:rgba(251,191,36,0.15); border-left:5px solid #fbbf24; font-weight:bold;'; }
+            else if(i === 1) { pos = '🥈 Plata'; style = 'background:rgba(148,163,184,0.15); border-left:5px solid #94a3b8;'; }
+            else if(i === 2) { pos = '🥉 Bronce'; style = 'background:rgba(180,83,9,0.15); border-left:5px solid #b45309;'; }
+            
+            const isAdmin = String(u.role).toUpperCase() === 'ADMIN';
+            const crown = isAdmin ? ' 👑' : '';
+            
+            return `<tr style="${style}">
+                <td><div style="font-weight:700;">${pos}</div></td>
+                <td><a href="javascript:void(0)" onclick="showPlayerStats('${u.id}')" style="text-decoration:none; color:var(--text-main); font-weight:700;">${u.username}${crown}</a></td>
+                <td><span class="status-badge" style="background:${isAdmin?'#fef3c7':'#f1f5f9'}; color:${isAdmin?'#92400e':'#64748b'}; border:none; padding:2px 8px; font-size:11px;">${u.role || 'PLAYER'}</span></td>
+                <td style="text-align:right; font-weight:800; color:var(--accent-color);">${u.eloRating}</td>
+                <td style="text-align:right;">
+                    <button class="btn btn-secondary" style="padding:5px 10px; font-size:0.8rem; border-radius:6px;" onclick="showPlayerStats('${u.id}')">
+                        <i class="fa-solid fa-user-tag"></i> Ficha
+                    </button>
+                </td>
+            </tr>`;
+        }).join('');
+    }
+}
+
+window.exportTournamentPDF = async function() {
+    try {
+        const { jsPDF } = window.jspdf;
+        if (!jsPDF) { alert("Error: Librería PDF no cargada"); return; }
+        const doc = new jsPDF();
+        const t = currentTournamentData;
+        if (!t) return;
+
+        const primaryColor = [139, 90, 43]; // #8b5a2b
+        
+        // ENCABEZADO
+        doc.setFontSize(22);
+        doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
+        doc.text("REPORTE OFICIAL DE TORNEO", 105, 20, { align: "center" });
+        
+        doc.setFontSize(16);
+        doc.setTextColor(0, 0, 0);
+        doc.text(t.nombre, 105, 30, { align: "center" });
+        
+        doc.setFontSize(10);
+        doc.setTextColor(100, 100, 100);
+        doc.text(`Sistema: ${t.sistemaJuego} | Estado: ${t.estado} | Fecha: ${new Date().toLocaleDateString()}`, 105, 38, { align: "center" });
+        
+        // TABLA DE POSICIONES
+        doc.setFontSize(14);
+        doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
+        doc.text("Clasificación Final / Actual", 14, 50);
+        
+        doc.autoTable({
+            html: '#standings-table',
+            startY: 55,
+            headStyles: { fillColor: primaryColor, textColor: 255 },
+            styles: { fontSize: 8, cellPadding: 2 },
+            alternateRowStyles: { fillColor: [248, 250, 252] }
+        });
+
+        let currentY = doc.lastAutoTable.finalY + 15;
+
+        // CUADRO DE HONOR (SI ESTÁ FINALIZADO)
+        if (t.estado === 'FINALIZADO') {
+            const table = document.getElementById('standings-table');
+            const rows = table?.querySelectorAll('tbody tr');
+            if (rows && rows.length > 0) {
+                doc.setFontSize(14);
+                doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
+                doc.text("CUADRO DE HONOR (PODIUM)", 14, currentY);
+                
+                doc.setFontSize(11);
+                // ORO
+                doc.setTextColor(218, 165, 32); // GoldenRod
+                doc.text(`1er Puesto (ORO): ${rows[0].cells[1].innerText}`, 20, currentY + 10);
+                
+                if (rows[1]) {
+                    doc.setTextColor(169, 169, 169); // DarkGray (Plata)
+                    doc.text(`2do Puesto (PLATA): ${rows[1].cells[1].innerText}`, 20, currentY + 18);
+                }
+                if (rows[2]) {
+                    doc.setTextColor(139, 69, 19); // SaddleBrown (Bronce)
+                    doc.text(`3er Puesto (BRONCE): ${rows[2].cells[1].innerText}`, 20, currentY + 26);
+                }
+                currentY += 40;
+            }
+        }
+
+        // RESUMEN DE PARTIDAS (NUEVA SECCIÓN)
+        const partidas = await API.getPartidas(t.id);
+        if (partidas && partidas.length > 0) {
+            if (currentY > 230) { doc.addPage(); currentY = 20; }
+            doc.setFontSize(14);
+            doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
+            doc.text("Historial de Encuentros", 14, currentY);
+            
+            const matchRows = partidas.map(p => [
+                `R${p.rondaNumero || 1}`,
+                p.blancas?.username || 'BYE',
+                p.negras?.username || 'BYE',
+                p.resultado || 'Pendiente'
+            ]);
+
+            doc.autoTable({
+                head: [['Ronda', 'Blancas', 'Negras', 'Resultado']],
+                body: matchRows,
+                startY: currentY + 5,
+                headStyles: { fillColor: [71, 85, 105], textColor: 255 },
+                styles: { fontSize: 8 }
+            });
+        }
+
+        // PIE DE PÁGINA
+        const pageCount = doc.internal.getNumberOfPages();
+        for(let i = 1; i <= pageCount; i++) {
+            doc.setPage(i);
+            doc.setFontSize(8);
+            doc.setTextColor(150, 150, 150);
+            doc.text(`Digital Curator - ChessPro Management System | Página ${i} de ${pageCount}`, 105, 285, { align: "center" });
+        }
+        
+        doc.save(`Reporte_${t.nombre.replace(/\s+/g, '_')}.pdf`);
+    } catch (error) {
+        console.error("Error al generar PDF:", error);
+        alert("Error al generar el PDF técnico.");
+    }
+};
+
+function initTheme() {
+    const isDark = localStorage.getItem('dark_mode') === 'true';
+    if (isDark) {
+        document.body.classList.add('dark-theme');
+        const toggle = document.getElementById('dark-mode-toggle');
+        if (toggle) toggle.checked = true;
+    }
+}
+
+window.toggleDarkMode = function() {
+    const isDark = document.body.classList.toggle('dark-theme');
+    localStorage.setItem('dark_mode', isDark);
 };
