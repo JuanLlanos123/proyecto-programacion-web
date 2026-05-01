@@ -1345,6 +1345,9 @@ function updateAnalysisUI() {
     const moveList = document.getElementById('analysis-move-list');
     if (moveList) {
         moveList.innerHTML = '';
+        const isDark = document.body.classList.contains('dark-theme');
+        const highlight = isDark ? 'rgba(255, 255, 255, 0.15)' : '#fef3c7';
+        
         for (let i = 0; i < currentHistory.length; i += 2) {
             const roundNum = Math.floor(i / 2) + 1;
             const whiteMove = currentHistory[i];
@@ -1352,8 +1355,8 @@ function updateAnalysisUI() {
             
             const moveRow = `
                 <div style="color: var(--text-muted); font-weight: bold;">${roundNum}.</div>
-                <div style="padding: 2px 5px; background: ${i === currentMoveIndex ? '#fef3c7' : 'transparent'}; border-radius: 4px;">${whiteMove}</div>
-                <div style="padding: 2px 5px; background: ${i + 1 === currentMoveIndex ? '#fef3c7' : 'transparent'}; border-radius: 4px;">${blackMove}</div>
+                <div style="padding: 2px 5px; background: ${i === currentMoveIndex ? highlight : 'transparent'}; border-radius: 4px; color: var(--text-main);">${whiteMove}</div>
+                <div style="padding: 2px 5px; background: ${i + 1 === currentMoveIndex ? highlight : 'transparent'}; border-radius: 4px; color: var(--text-main);">${blackMove}</div>
             `;
             moveList.innerHTML += moveRow;
         }
