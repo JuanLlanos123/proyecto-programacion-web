@@ -29,9 +29,11 @@ async function fetchWithAuth(url, options = {}) {
     const token = getAuthToken();
     const headers = { ...options.headers };
     
-    // Si hay un token disponible, se añade a la cabecera Authorization
     if (token) {
         headers['Authorization'] = `Bearer ${token}`;
+        console.log("API: Enviando token en cabecera Authorization");
+    } else {
+        console.warn("API: No se encontró token JWT en localStorage");
     }
     
     const config = {
@@ -43,6 +45,7 @@ async function fetchWithAuth(url, options = {}) {
     
     // Si el servidor rechaza el acceso, se limpia la sesión local
     if (response.status === 401 || response.status === 403) {
+        console.warn("API: Acceso denegado (401/403). Limpiando sesión.");
         localStorage.removeItem('jwt_token');
         localStorage.removeItem('currentUser');
     }
@@ -167,7 +170,6 @@ const API = {
         }
     },
 
-    /** Inscribe un jugador en un torneo */
     async inscribirJugador(torneoId, data) {
         try {
             const response = await fetchWithAuth(`${API_BASE}/torneos/${torneoId}/inscripciones`, {
@@ -175,9 +177,14 @@ const API = {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(data)
             });
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({}));
+                return { success: false, message: errorData.message || `Error ${response.status}` };
+            }
             return await response.json();
         } catch (error) {
             console.error("Error al inscribir jugador:", error);
+            return { success: false, message: error.message };
         }
     },
 

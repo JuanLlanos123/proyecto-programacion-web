@@ -515,6 +515,8 @@ function initForms() {
     if (formAddPlayer) {
         formAddPlayer.addEventListener('submit', async (e) => {
             e.preventDefault();
+            const btn = formAddPlayer.querySelector('button[type="submit"]');
+            if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Inscribiendo...'; }
             try {
                 const mode = document.getElementById('add-player-mode').value;
                 console.log('Inscribiendo jugador, modo:', mode, 'TorneoID:', currentTournamentId);
@@ -553,6 +555,8 @@ function initForms() {
             } catch (err) {
                 console.error('Error en formAddPlayer:', err);
                 alert('Error crítico al inscribir: ' + err.message);
+            } finally {
+                if(btn) { btn.disabled = false; btn.innerHTML = 'Añadir a la lista'; }
             }
         });
     }
@@ -574,10 +578,10 @@ function initForms() {
     if (formCreatePlayer) {
         formCreatePlayer.addEventListener('submit', async (e) => {
             e.preventDefault();
+            const btn = formCreatePlayer.querySelector('button[type="submit"]');
             try {
                 console.log('Formulario de crear jugador enviado');
-                const btn = formCreatePlayer.querySelector('button[type="submit"]');
-                btn.disabled = true;
+                if(btn) { btn.disabled = true; btn.innerHTML = 'Creando...'; }
                 btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Creando...';
 
                 const username = document.getElementById('create-p-name').value;
@@ -610,8 +614,10 @@ function initForms() {
                 console.error('Error en formCreatePlayer:', err);
                 alert('Error crítico al crear jugador: ' + err.message);
             } finally {
-                btn.disabled = false;
-                btn.innerHTML = 'Crear Jugador';
+                if(btn) {
+                    btn.disabled = false;
+                    btn.innerHTML = 'Crear Jugador';
+                }
             }
         });
     } else {
@@ -1104,8 +1110,17 @@ window.openEditEloModal = function(id, name, elo) {
 };
 
 window.startTournament = async function(tId) { await API.startTorneo(tId); renderTournamentDetail(tId); };
-window.completeTournament = async function(id) { if (confirm("¿Finalizar?")) { await API.finalizarTorneo(id); renderTournamentDetail(id); } };
-window.logout = function() { localStorage.removeItem('jwt_token'); localStorage.removeItem('currentUser'); location.reload(); };
+window.completeTournament = async function(id) { 
+    if (confirm("¿Finalizar el torneo y actualizar rankings?")) { 
+        await API.finalizarTorneo(id); 
+        renderTournamentDetail(id); 
+    } 
+};
+window.logout = function() { 
+    localStorage.removeItem('jwt_token'); 
+    localStorage.removeItem('currentUser'); 
+    location.reload(); 
+};
 
 function connectWebSocket() {
     const wsUrl = window.API_BASE ? window.API_BASE.replace('/api', '') + '/ws-chess' : 'http://localhost:8080/ws-chess';
@@ -1249,9 +1264,11 @@ window.exportTournamentPDF = async function() {
         }
         
         doc.save(`Reporte_${t.nombre.replace(/\s+/g, '_')}.pdf`);
-    } catch (error) {
-        console.error("Error al generar PDF:", error);
-        alert("Error al generar el PDF técnico.");
+        } catch (error) {
+            console.error("Error al inscribir jugador:", error);
+            return { success: false, message: error.message };
+        }
+alert("Error al generar el PDF técnico.");
     }
 };
 
