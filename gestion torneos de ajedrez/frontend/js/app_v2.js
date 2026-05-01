@@ -1264,11 +1264,9 @@ window.exportTournamentPDF = async function() {
         }
         
         doc.save(`Reporte_${t.nombre.replace(/\s+/g, '_')}.pdf`);
-        } catch (error) {
-            console.error("Error al inscribir jugador:", error);
-            return { success: false, message: error.message };
-        }
-alert("Error al generar el PDF técnico.");
+    } catch (error) {
+        console.error("Error al generar PDF:", error);
+        alert("Error al generar el PDF técnico.");
     }
 };
 
