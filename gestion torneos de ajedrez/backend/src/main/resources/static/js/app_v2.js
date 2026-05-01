@@ -55,6 +55,7 @@ function initNavigation() {
             if(target === 'players-view') renderPlayersView();
             if(target === 'ranking-view') renderGlobalRanking();
             if(target === 'compare-view') populateCompareSelects();
+            if(target === 'analysis-view') setTimeout(initAnalysisBoard, 500);
         });
     });
 
@@ -1220,7 +1221,4 @@ function updateEvalBar(cp) {
 const originalShowView = window.showView;
 window.showView = function(viewId) {
     originalShowView(viewId);
-    if (viewId === 'player-view') {
-        setTimeout(initAnalysisBoard, 500);
-    }
 };

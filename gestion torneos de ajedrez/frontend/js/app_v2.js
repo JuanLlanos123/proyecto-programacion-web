@@ -54,6 +54,7 @@ function initNavigation() {
             if(target === 'users-view') renderUsers();
             if(target === 'players-view') renderPlayersView();
             if(target === 'ranking-view') renderGlobalRanking();
+            if(target === 'compare-view') populateCompareSelects();
         });
     });
 
@@ -67,6 +68,123 @@ function initNavigation() {
         });
     });
 }
+
+let compareChartInstance = null;
+
+window.populateCompareSelects = async function() {
+    const users = await API.getUsuarios();
+    const players = users.filter(u => String(u.role).toUpperCase() !== 'ADMIN');
+    const s1 = document.getElementById('compare-p1');
+    const s2 = document.getElementById('compare-p2');
+    
+    if (s1 && s2) {
+        const options = '<option value="">Seleccionar jugador...</option>' + 
+            players.map(u => `<option value="${u.id}">${u.username} (${u.eloRating})</option>`).join('');
+        s1.innerHTML = options;
+        s2.innerHTML = options;
+    }
+};
+
+window.runComparison = async function() {
+    const u1 = document.getElementById('compare-p1').value;
+    const u2 = document.getElementById('compare-p2').value;
+    const results = document.getElementById('compare-results');
+
+    if (!u1 || !u2 || u1 === u2) {
+        results.style.display = 'none';
+        return;
+    }
+
+    const data = await fetchWithAuth(`${window.API_BASE}/usuarios/compare?u1=${u1}&u2=${u2}`).then(r => r.json());
+    results.style.display = 'block';
+
+    // Stats
+    let w1 = 0, w2 = 0, d = 0;
+    data.matches.forEach(p => {
+        const isWhite1 = p.blancas && String(p.blancas.id) === String(u1);
+        if (p.resultado === '1-0') isWhite1 ? w1++ : w2++;
+        else if (p.resultado === '0-1') isWhite1 ? w2++ : w1++;
+        else d++;
+    });
+
+    document.getElementById('compare-w1').textContent = w1;
+    document.getElementById('compare-w2').textContent = w2;
+    document.getElementById('compare-draws').textContent = d;
+    document.getElementById('compare-n1').textContent = data.user1.username;
+    document.getElementById('compare-n2').textContent = data.user2.username;
+
+    // Win Rate Bar
+    const total = Math.max(w1 + w2 + d, 1);
+    document.getElementById('bar-p1').style.width = (w1 / total * 100) + '%';
+    document.getElementById('bar-p2').style.width = (w2 / total * 100) + '%';
+    document.getElementById('bar-draw').style.width = (d / total * 100) + '%';
+
+    // Matches Table
+    const tbody = document.querySelector('#compare-matches-table tbody');
+    tbody.innerHTML = data.matches.map(p => `
+        <tr>
+            <td>${p.torneo ? p.torneo.name : 'Amistoso'}</td>
+            <td style="font-weight:bold;">${p.resultado}</td>
+        </tr>
+    `).join('');
+
+    renderCompareChart(data.history1, data.history2, data.user1.username, data.user2.username);
+};
+
+function renderCompareChart(h1, h2, n1, n2) {
+    const canvas = document.getElementById('compareEloChart');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (compareChartInstance) compareChartInstance.destroy();
+
+    const allDates = [...new Set([...h1, ...h2].map(h => new Date(h.fecha).toLocaleDateString()))].sort((a,b) => new Date(a) - new Date(b));
+
+    const getEloAt = (history, dateStr) => {
+        const entry = history.find(h => new Date(h.fecha).toLocaleDateString() === dateStr);
+        return entry ? entry.elo : null;
+    };
+
+    const isDark = document.body.classList.contains('dark-theme');
+    const textColor = isDark ? '#f0eade' : '#2D2C2A';
+    const gridColor = isDark ? '#2d1f1a' : '#f1f5f9';
+
+    compareChartInstance = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: allDates,
+            datasets: [
+                {
+                    label: n1,
+                    data: allDates.map(d => getEloAt(h1, d)),
+                    borderColor: '#8b5a2b',
+                    backgroundColor: 'transparent',
+                    borderWidth: 3,
+                    tension: 0.3,
+                    spanGaps: true
+                },
+                {
+                    label: n2,
+                    data: allDates.map(d => getEloAt(h2, d)),
+                    borderColor: '#16a34a',
+                    backgroundColor: 'transparent',
+                    borderWidth: 3,
+                    tension: 0.3,
+                    spanGaps: true
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { labels: { color: textColor } } },
+            scales: {
+                y: { grid: { color: gridColor }, ticks: { color: textColor } },
+                x: { grid: { display: false }, ticks: { color: textColor } }
+            }
+        }
+    });
+}
+
 
 window.showView = function(viewId) {
     document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
@@ -143,7 +261,26 @@ window.showPlayerStats = async function(userId) {
             });
             document.getElementById('trophy-section').style.display = 'block';
         } else {
-            trophyContainer.innerHTML = '<div style="color:var(--text-muted); font-size:0.85rem; font-style:italic;">Aún no ha ganado trofeos en este sistema.</div>';
+            trophyContainer.innerHTML = '<div style="color:var(--text-muted); font-size:0.85rem; font-style:italic;">Aún no ha ganado trofeos.</div>';
+        }
+    }
+
+    // Renderizar Logros
+    const achievementContainer = document.getElementById('stat-achievements-container');
+    if (achievementContainer) {
+        achievementContainer.innerHTML = '';
+        if (data.logros && data.logros.length > 0) {
+            data.logros.forEach(logro => {
+                const div = document.createElement('div');
+                div.className = 'achievement-badge';
+                div.style = `background: var(--surface-card); border: 1.5px solid var(--primary-color); padding: 8px 12px; border-radius: 12px; display: flex; align-items: center; gap: 10px; font-size: 0.85rem; box-shadow: 0 4px 6px rgba(0,0,0,0.1); cursor: help;`;
+                div.title = logro.description;
+                div.innerHTML = `<i class="${logro.icon}" style="color:var(--primary-color); font-size:1.1rem;"></i> <strong>${logro.name}</strong>`;
+                achievementContainer.appendChild(div);
+            });
+            document.getElementById('achievement-section').style.display = 'block';
+        } else {
+            achievementContainer.innerHTML = '<div style="color:var(--text-muted); font-size:0.85rem; font-style:italic;">Aún no ha desbloqueado insignias.</div>';
         }
     }
 
@@ -982,4 +1119,108 @@ function initTheme() {
 window.toggleDarkMode = function() {
     const isDark = document.body.classList.toggle('dark-theme');
     localStorage.setItem('dark_mode', isDark);
+};
+// --- Stockfish Analysis Logic ---
+let analysisBoard = null;
+let analysisGame = new Chess();
+let stockfishWorker = null;
+let currentHistory = [];
+let currentMoveIndex = -1;
+
+window.initAnalysisBoard = function() {
+    if (analysisBoard) return;
+    analysisBoard = Chessboard('analysis-board', {
+        draggable: true,
+        position: 'start',
+        onDrop: (source, target) => {
+            let move = analysisGame.move({ from: source, to: target, promotion: 'q' });
+            if (move === null) return 'snapback';
+            updateAnalysisUI();
+        }
+    });
+};
+
+window.loadPGN = function() {
+    const pgn = document.getElementById('pgn-input').value;
+    if (!pgn) return;
+    analysisGame = new Chess();
+    if (analysisGame.load_pgn(pgn)) {
+        currentHistory = analysisGame.history();
+        currentMoveIndex = currentHistory.length - 1;
+        analysisBoard.position(analysisGame.fen());
+        updateAnalysisUI();
+    } else {
+        alert('Error: PGN no válido.');
+    }
+};
+
+window.moveAnalysis = function(dir) {
+    if (dir === 1 && currentMoveIndex < currentHistory.length - 1) {
+        currentMoveIndex++;
+    } else if (dir === -1 && currentMoveIndex >= 0) {
+        currentMoveIndex--;
+    } else if (dir === -1 && currentMoveIndex === -1) {
+        return;
+    }
+
+    const tempGame = new Chess();
+    for (let i = 0; i <= currentMoveIndex; i++) {
+        tempGame.move(currentHistory[i]);
+    }
+    analysisBoard.position(tempGame.fen());
+    analysisGame = tempGame;
+    updateAnalysisUI();
+};
+
+function updateAnalysisUI() {
+    // Reset eval if needed
+    document.getElementById('best-move').textContent = 'Análisis listo...';
+}
+
+window.startAnalysis = function() {
+    if (!stockfishWorker) {
+        stockfishWorker = typeof Stockfish === 'function' ? Stockfish() : new Worker('https://cdnjs.cloudflare.com/ajax/libs/stockfish.js/10.0.2/stockfish.js');
+    }
+    
+    document.getElementById('best-move').textContent = 'Analizando...';
+    
+    stockfishWorker.onmessage = function(event) {
+        const line = event.data;
+        if (line.includes('info depth') && line.includes('cp')) {
+            const cpMatch = line.match(/cp (-?\d+)/);
+            if (cpMatch) {
+                const cp = parseInt(cpMatch[1]) / 100.0;
+                updateEvalBar(cp);
+            }
+        } else if (line.includes('bestmove')) {
+            const move = line.split(' ')[1];
+            document.getElementById('best-move').textContent = 'Mejor movimiento: ' + move;
+        }
+    };
+
+    stockfishWorker.postMessage('uci');
+    stockfishWorker.postMessage('ucinewgame');
+    stockfishWorker.postMessage('position fen ' + analysisGame.fen());
+    stockfishWorker.postMessage('go depth 15');
+};
+
+function updateEvalBar(cp) {
+    const val = document.getElementById('eval-value');
+    const bar = document.getElementById('eval-bar');
+    val.textContent = (cp > 0 ? '+' : '') + cp.toFixed(2);
+    
+    // 0 = 50%, +5 = 100%, -5 = 0%
+    let percentage = 50 + (cp * 10);
+    if (percentage > 100) percentage = 100;
+    if (percentage < 0) percentage = 0;
+    bar.style.width = percentage + '%';
+}
+
+// Hook into navigation to init board
+const originalShowView = window.showView;
+window.showView = function(viewId) {
+    originalShowView(viewId);
+    if (viewId === 'player-view') {
+        setTimeout(initAnalysisBoard, 500);
+    }
 };
