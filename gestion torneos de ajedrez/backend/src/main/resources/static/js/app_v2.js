@@ -299,7 +299,6 @@ async function renderTournamentDetail(id) {
     const addPlayerGroup = document.getElementById('btn-add-player-group');
 
     if (actions) {
-        // BOTONES A LA DERECHA
         actions.style = 'display: flex; justify-content: flex-end; align-items: center; gap: 10px; width: 100%;';
         actions.innerHTML = '';
         
@@ -309,15 +308,40 @@ async function renderTournamentDetail(id) {
             actions.innerHTML = `<button class="btn btn-primary" onclick="startTournament('${id}')"><i class="fa-solid fa-play"></i> INICIAR TORNEO</button>`;
             if(addPlayerGroup) addPlayerGroup.style.display = 'flex';
         } else if (t.estado !== 'FINALIZADO') {
+            
+            // Detectar si la ronda actual tiene partidas pendientes ('P')
+            const maxRound = partidas.length > 0 ? Math.max(...partidas.map(p => p.rondaNumero || 1)) : 0;
+            const currentRoundMatches = partidas.filter(p => (p.rondaNumero || 1) === maxRound);
+            const rondaActualCompleta = currentRoundMatches.length > 0 && currentRoundMatches.every(p => p.resultado !== 'P');
+            
             let isFinal = false;
-            if (t.sistemaJuego.includes('ELIMINATORIA')) {
-                const maxRound = Math.max(...partidas.map(p => p.rondaNumero || 1), 0);
-                const matchesInLastRound = partidas.filter(p => (p.rondaNumero || 1) === maxRound);
-                if (matchesInLastRound.length === 1 && matchesInLastRound[0].resultado !== 'P') isFinal = true;
+
+            if (t.sistemaJuego === 'ROUND_ROBIN') {
+                // Round Robin: el nº de rondas = nº jugadores - 1 (o jugadores si impar)
+                const nJugadores = inscripciones.length;
+                const rondasEsperadas = nJugadores % 2 === 0 ? nJugadores - 1 : nJugadores;
+                isFinal = rondaActualCompleta && maxRound >= rondasEsperadas;
+            } else if (t.sistemaJuego === 'SUIZO') {
+                // Suizo: isFinal cuando la ronda actual está completa y el backend no generará más
+                // Convencionalmente, rondas suizo = ceil(log2(n)) ≈ log2 del nº de jugadores
+                const nJugadores = inscripciones.length;
+                const rondasEsperadas = Math.ceil(Math.log2(Math.max(nJugadores, 2)));
+                isFinal = rondaActualCompleta && maxRound >= rondasEsperadas;
+            } else if (t.sistemaJuego.includes('ELIMINATORIA')) {
+                // Eliminatoria: termina cuando solo queda 1 partida en la última ronda y está resuelta
+                if (currentRoundMatches.length === 1 && currentRoundMatches[0].resultado !== 'P') isFinal = true;
             }
-            actions.innerHTML = isFinal ? 
-                `<button class="btn btn-primary" style="background:#dc2626;" onclick="completeTournament('${id}')"><i class="fa-solid fa-trophy"></i> FINALIZAR TORNEO</button>` : 
-                `<button class="btn btn-primary" onclick="startTournament('${id}')"><i class="fa-solid fa-forward"></i> SIGUIENTE RONDA</button>`;
+
+            if (isFinal) {
+                actions.innerHTML = `<button class="btn btn-primary" style="background:#dc2626;" onclick="completeTournament('${id}')"><i class="fa-solid fa-trophy"></i> FINALIZAR TORNEO</button>`;
+            } else if (rondaActualCompleta) {
+                // Ronda terminada, hay más rondas por jugar → mostrar "Siguiente Ronda"
+                actions.innerHTML = `<button class="btn btn-primary" onclick="startTournament('${id}')"><i class="fa-solid fa-forward"></i> SIGUIENTE RONDA</button>`;
+            } else {
+                // Ronda en curso, hay partidas pendientes → no mostrar botón de avance
+                actions.innerHTML = `<span style="color:var(--text-muted); font-size:0.9rem;"><i class="fa-solid fa-clock"></i> Ronda ${maxRound} en curso — completa todos los resultados</span>`;
+            }
+
             if(addPlayerGroup) addPlayerGroup.style.display = 'none';
         } else {
             actions.innerHTML = '<span class="status-badge status-completed">TORNEO FINALIZADO</span>';
