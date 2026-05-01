@@ -125,10 +125,30 @@ public class UsuarioController {
         }).orElse(ResponseEntity.notFound().build());
     }
 
-    @DeleteMapping("/{id}")
-    public ResponseEntity<?> eliminarUsuario(@PathVariable Long id) {
-        if (!usuarioRepository.existsById(id)) return ResponseEntity.notFound().build();
-        usuarioRepository.deleteById(id);
-        return ResponseEntity.noContent().build();
+    @GetMapping("/compare")
+    public ResponseEntity<?> comparePlayers(@RequestParam Long u1, @RequestParam Long u2) {
+        Usuario user1 = usuarioRepository.findById(u1).orElse(null);
+        Usuario user2 = usuarioRepository.findById(u2).orElse(null);
+        
+        if (user1 == null || user2 == null) return ResponseEntity.notFound().build();
+
+        // Partidas entre ambos
+        List<com.ajedrez.models.Partida> mutualMatches = partidaRepository.findAll().stream()
+                .filter(p -> p.getResultado() != null && !p.getResultado().equals("P"))
+                .filter(p -> {
+                    Long bId = p.getBlancas() != null ? p.getBlancas().getId() : null;
+                    Long nId = p.getNegras() != null ? p.getNegras().getId() : null;
+                    return (u1.equals(bId) && u2.equals(nId)) || (u1.equals(nId) && u2.equals(bId));
+                })
+                .collect(java.util.stream.Collectors.toList());
+
+        java.util.Map<String, Object> response = new java.util.HashMap<>();
+        response.put("user1", user1);
+        response.put("user2", user2);
+        response.put("matches", mutualMatches);
+        response.put("history1", eloHistoryRepository.findByUsuarioIdOrderByFechaAsc(u1));
+        response.put("history2", eloHistoryRepository.findByUsuarioIdOrderByFechaAsc(u2));
+
+        return ResponseEntity.ok(response);
     }
 }
