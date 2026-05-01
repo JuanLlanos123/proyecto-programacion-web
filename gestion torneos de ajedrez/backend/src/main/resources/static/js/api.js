@@ -4,8 +4,13 @@
  */
 
 // Configuración dinámica de la URL del servidor
-// Al estar el frontend servido por el mismo backend, usamos rutas relativas
-const API_BASE = '/api';
+// - En Railway (nube): usa ruta relativa /api (mismo servidor)
+// - En localhost vía Spring Boot (puerto 8080): usa ruta relativa /api
+// - En localhost vía archivo directo (file://): usa http://localhost:8080/api
+const isFileSystem = window.location.protocol === 'file:';
+const API_BASE = isFileSystem
+    ? 'http://localhost:8080/api'
+    : '/api';
 window.API_BASE = API_BASE;
 
 /**
