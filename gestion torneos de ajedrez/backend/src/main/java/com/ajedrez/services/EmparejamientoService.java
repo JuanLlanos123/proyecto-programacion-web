@@ -29,6 +29,14 @@ public class EmparejamientoService {
     @Autowired
     private InscripcionRepository inscripcionRepository;
 
+    /**
+     * Punto de entrada principal para generar emparejamientos.
+     * Selecciona el algoritmo adecuado basado en el sistema de juego del torneo.
+     * 
+     * @param torneo El torneo para el cual generar la ronda.
+     * @param inscripciones Lista de jugadores inscritos actualmente.
+     * @return Lista de partidas (emparejamientos) generadas y guardadas.
+     */
     @Transactional
     public List<Partida> generarRondas(Torneo torneo, List<Inscripcion> inscripciones) {
         if(inscripciones.size() < 2) return new ArrayList<>();
@@ -44,6 +52,10 @@ public class EmparejamientoService {
         }
     }
 
+    /**
+     * Implementa el algoritmo de Round Robin (Todos contra todos).
+     * Utiliza el sistema de rotación para asegurar que todos jueguen contra todos.
+     */
     private List<Partida> generarRoundRobin(Torneo torneo, List<Inscripcion> inscripciones) {
         List<Usuario> jugadores = new ArrayList<>();
         for(Inscripcion i : inscripciones) {
@@ -100,6 +112,12 @@ public class EmparejamientoService {
         return partidasGeneradas;
     }
 
+    /**
+     * Algoritmo de Sistema Suizo.
+     * Empareja a jugadores con igual o similar puntuación.
+     * Evita que dos jugadores se enfrenten más de una vez en el mismo torneo.
+     * Prioriza la alternancia de colores (Blancas/Negras).
+     */
     private List<Partida> generarRondaSuizo(Torneo torneo, List<Inscripcion> inscripciones) {
         List<Partida> partidasExistentes = partidaRepository.findByTorneoId(torneo.getId());
         
@@ -343,6 +361,13 @@ public class EmparejamientoService {
         return false;
     }
 
+    /**
+     * Recalcula los puntos y desempates para todos los inscritos en un torneo.
+     * Calcula:
+     * - Puntos (1 por victoria, 0.5 por tablas).
+     * - Buchholz: Suma de puntos de todos los oponentes.
+     * - Sonneborn-Berger: Suma de puntos de oponentes vencidos + mitad de puntos de oponentes empatados.
+     */
     @Transactional
     public void actualizarPuntos(Long torneoId) {
         List<Inscripcion> inscripciones = inscripcionRepository.findByTorneoId(torneoId);

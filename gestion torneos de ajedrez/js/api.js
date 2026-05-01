@@ -4,7 +4,9 @@
  */
 
 // Configuración dinámica de la URL del servidor
-// Prioriza la conexión a Railway si estamos en la nube, de lo contrario usa el servidor local
+// DETECCIÓN DE ENTORNO:
+// Si detecta que el sitio corre en Railway o GitHub Pages, usa el backend de producción.
+// De lo contrario, asume que estás desarrollando localmente en http://localhost:8080.
 const API_BASE = (window.location.hostname.includes('railway.app') || window.location.hostname.includes('github.io'))
     ? 'https://backend-lmeb-production.up.railway.app/api'
     : 'http://localhost:8080/api';
