@@ -149,7 +149,8 @@ function initForms() {
             try {
                 const nombre = document.getElementById('form-t-name').value;
                 const sistemaJuego = document.getElementById('form-t-sistema').value;
-                const t = await API.createTorneo({ nombre, descripcion: "Torneo de Ajedrez", sistemaJuego });
+                const maxRondas = sistemaJuego === 'SUIZO' ? parseInt(document.getElementById('form-t-rondas').value) : null;
+                const t = await API.createTorneo({ nombre, descripcion: "Torneo de Ajedrez", sistemaJuego, maxRondas });
                 if(t) { closeModal('create-tournament-modal'); renderDashboard(); renderTournamentList(); openTournamentDetail(t.id); }
             } catch (err) { alert("Error al crear"); } finally { btn.disabled = false; btn.innerHTML = 'Crear Torneo'; }
         });
@@ -315,33 +316,38 @@ async function renderTournamentDetail(id) {
             const rondaActualCompleta = currentRoundMatches.length > 0 && currentRoundMatches.every(p => p.resultado !== 'P');
             
             let isFinal = false;
+            let actionButtons = '';
 
             if (t.sistemaJuego === 'ROUND_ROBIN') {
-                // Round Robin: el nº de rondas = nº jugadores - 1 (o jugadores si impar)
-                const nJugadores = inscripciones.length;
-                const rondasEsperadas = nJugadores % 2 === 0 ? nJugadores - 1 : nJugadores;
-                isFinal = rondaActualCompleta && maxRound >= rondasEsperadas;
+                const allMatchesFinished = partidas.length > 0 && partidas.every(p => p.resultado !== 'P');
+                isFinal = allMatchesFinished;
             } else if (t.sistemaJuego === 'SUIZO') {
-                // Suizo: isFinal cuando la ronda actual está completa y el backend no generará más
-                // Convencionalmente, rondas suizo = ceil(log2(n)) ≈ log2 del nº de jugadores
                 const nJugadores = inscripciones.length;
-                const rondasEsperadas = Math.ceil(Math.log2(Math.max(nJugadores, 2)));
+                const rondasEsperadas = t.maxRondas || Math.ceil(Math.log2(Math.max(nJugadores, 2)));
                 isFinal = rondaActualCompleta && maxRound >= rondasEsperadas;
+                
+                // Si es suizo y la ronda terminó pero no es la final, mostramos ambos
+                if (rondaActualCompleta && !isFinal) {
+                    actionButtons = `
+                        <button class="btn" style="background:#dc2626; color:white; padding:10px 20px; border-radius:8px;" onclick="completeTournament('${id}')"><i class="fa-solid fa-trophy"></i> FINALIZAR YA</button>
+                        <button class="btn btn-primary" onclick="startTournament('${id}')"><i class="fa-solid fa-forward"></i> SIGUIENTE RONDA</button>
+                    `;
+                }
             } else if (t.sistemaJuego.includes('ELIMINATORIA')) {
-                // Eliminatoria: termina cuando solo queda 1 partida en la última ronda y está resuelta
                 if (currentRoundMatches.length === 1 && currentRoundMatches[0].resultado !== 'P') isFinal = true;
             }
 
-            if (isFinal) {
-                actions.innerHTML = `<button class="btn btn-primary" style="background:#dc2626;" onclick="completeTournament('${id}')"><i class="fa-solid fa-trophy"></i> FINALIZAR TORNEO</button>`;
-            } else if (rondaActualCompleta) {
-                // Ronda terminada, hay más rondas por jugar → mostrar "Siguiente Ronda"
-                actions.innerHTML = `<button class="btn btn-primary" onclick="startTournament('${id}')"><i class="fa-solid fa-forward"></i> SIGUIENTE RONDA</button>`;
-            } else {
-                // Ronda en curso, hay partidas pendientes → no mostrar botón de avance
-                actions.innerHTML = `<span style="color:var(--text-muted); font-size:0.9rem;"><i class="fa-solid fa-clock"></i> Ronda ${maxRound} en curso — completa todos los resultados</span>`;
+            if (!actionButtons) {
+                if (isFinal) {
+                    actionButtons = `<button class="btn btn-primary" style="background:#dc2626;" onclick="completeTournament('${id}')"><i class="fa-solid fa-trophy"></i> FINALIZAR TORNEO</button>`;
+                } else if (rondaActualCompleta) {
+                    actionButtons = `<button class="btn btn-primary" onclick="startTournament('${id}')"><i class="fa-solid fa-forward"></i> SIGUIENTE RONDA</button>`;
+                } else {
+                    actionButtons = `<span style="color:var(--text-muted); font-size:0.9rem;"><i class="fa-solid fa-clock"></i> Ronda ${maxRound} en curso — completa todos los resultados</span>`;
+                }
             }
 
+            actions.innerHTML = actionButtons;
             if(addPlayerGroup) addPlayerGroup.style.display = 'none';
         } else {
             actions.innerHTML = '<span class="status-badge status-completed">TORNEO FINALIZADO</span>';
@@ -502,3 +508,8 @@ function connectWebSocket() {
         client.subscribe('/topic/notifications', () => { if(currentTournamentId) renderTournamentDetail(currentTournamentId); });
     });
 }
+
+window.toggleRoundsInput = function(val) {
+    const group = document.getElementById('group-t-rondas');
+    if (group) group.style.display = (val === 'SUIZO') ? 'block' : 'none';
+};

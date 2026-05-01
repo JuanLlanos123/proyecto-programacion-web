@@ -224,6 +224,11 @@ public class TorneoController {
             if(body.containsKey("descripcion")) torneo.setDescripcion((String) body.get("descripcion"));
             if(body.containsKey("ubicacion")) torneo.setUbicacion((String) body.get("ubicacion"));
             if(body.containsKey("sistemaJuego")) torneo.setSistemaJuego((String) body.get("sistemaJuego"));
+            if(body.containsKey("maxRondas")) {
+                Object mr = body.get("maxRondas");
+                if(mr != null) torneo.setMaxRondas(Integer.parseInt(mr.toString()));
+                else torneo.setMaxRondas(null);
+            }
             
             return ResponseEntity.ok(torneoRepository.save(torneo));
         }).orElse(ResponseEntity.notFound().build());

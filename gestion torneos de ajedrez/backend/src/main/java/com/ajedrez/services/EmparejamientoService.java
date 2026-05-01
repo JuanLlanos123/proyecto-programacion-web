@@ -136,6 +136,11 @@ public class EmparejamientoService {
 
         int nuevaRonda = rondaActual + 1;
 
+        // GUARD: No generar más rondas si ya se alcanzó el máximo (si está definido)
+        if (torneo.getMaxRondas() != null && nuevaRonda > torneo.getMaxRondas()) {
+            return new ArrayList<>();
+        }
+
         List<Inscripcion> ordenados = new ArrayList<>(inscripciones);
         ordenados.sort((a, b) -> {
             int ptsCmp = Double.compare(b.getPuntosAcumulados(), a.getPuntosAcumulados());

@@ -29,6 +29,7 @@ CREATE TABLE torneos (
     -- Estados: 'RECLUTANDO', 'EN_CURSO', 'FINALIZADO', 'CANCELADO'
     estado VARCHAR(20) DEFAULT 'RECLUTANDO', 
     sistema_juego VARCHAR(20) NOT NULL, -- 'SUIZO', 'ROUND_ROBIN'
+    max_rondas INT, -- Para Sistema Suizo
     ubicacion VARCHAR(100), -- Puede ser 'Online' o un lugar físico
     organizador_id INT NOT NULL,
     CONSTRAINT fk_torneo_organizador FOREIGN KEY (organizador_id) REFERENCES usuarios(id)

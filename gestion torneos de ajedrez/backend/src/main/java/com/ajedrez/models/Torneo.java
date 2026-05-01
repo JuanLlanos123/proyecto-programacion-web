@@ -39,6 +39,9 @@ public class Torneo {
     @JoinColumn(name = "organizador_id", nullable = true) // nullable para simplificar la creacion
     private Usuario organizador;
 
+    @Column(name = "max_rondas")
+    private Integer maxRondas;
+
     public Torneo() {}
 
     public Long getId() { return id; }
@@ -59,4 +62,6 @@ public class Torneo {
     public void setUbicacion(String ubicacion) { this.ubicacion = ubicacion; }
     public Usuario getOrganizador() { return organizador; }
     public void setOrganizador(Usuario organizador) { this.organizador = organizador; }
+    public Integer getMaxRondas() { return maxRondas; }
+    public void setMaxRondas(Integer maxRondas) { this.maxRondas = maxRondas; }
 }
