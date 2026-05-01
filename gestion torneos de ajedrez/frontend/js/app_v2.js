@@ -2,11 +2,14 @@
  * app_v2.js - LOGICA MAESTRA (BANNER DE CAMPEÓN AL FINAL)
  */
 
-let currentTournamentId = null;
+window.currentTournamentId = null;
+var currentTournamentId = null; // Para compatibilidad dual
 
 document.addEventListener('DOMContentLoaded', () => {
+    console.log('DOMContentLoaded ejecutado');
     window.onerror = function(msg, url, lineNo, columnNo, error) {
         console.error('Error: ' + msg + '\nScript: ' + url + '\nLine: ' + lineNo);
+        alert('Error detectado: ' + msg + '\nEn línea: ' + lineNo);
         return false;
     };
 
@@ -56,6 +59,12 @@ function initNavigation() {
             if(target === 'ranking-view') renderGlobalRanking();
             if(target === 'compare-view') populateCompareSelects();
             if(target === 'analysis-view') setTimeout(initAnalysisBoard, 500);
+            if(target === 'achievements-view') renderAchievements();
+            
+            // Cerrar sidebar en móvil al navegar
+            if (window.innerWidth <= 768) {
+                toggleSidebar();
+            }
         });
     });
 
@@ -201,6 +210,70 @@ window.openModal = function(modalId) {
 window.closeModal = function(modalId) { 
     const modal = document.getElementById(modalId);
     if (modal) modal.classList.remove('active'); 
+};
+
+window.toggleSidebar = function() {
+    const sidebar = document.getElementById('main-sidebar');
+    const overlay = document.getElementById('sidebar-overlay');
+    if (sidebar) sidebar.classList.toggle('active');
+    if (overlay) overlay.classList.toggle('active');
+};
+
+window.toggleSidebarCollapse = function() {
+    const sidebar = document.getElementById('main-sidebar');
+    const icon = document.getElementById('collapse-icon');
+    if (!sidebar) return;
+    sidebar.classList.toggle('collapsed');
+    const isCollapsed = sidebar.classList.contains('collapsed');
+    if (icon) icon.className = isCollapsed ? 'fa-solid fa-chevron-right' : 'fa-solid fa-chevron-left';
+    const btn = document.getElementById('sidebar-collapse-btn');
+    if (btn) btn.title = isCollapsed ? 'Mostrar menú' : 'Ocultar menú';
+};
+
+window.toggleFab = function() {
+    const main = document.getElementById('fab-main');
+    const options = document.getElementById('fab-options');
+    if (main) main.classList.toggle('active');
+    if (options) options.classList.toggle('active');
+};
+
+window.renderAchievements = function() {
+    const list = document.getElementById('full-achievements-list');
+    if (!list) return;
+    
+    const allAchievements = [
+        // Habilidad
+        { name: "Primeros Pasos",      desc: "Juega tu primera partida oficial en la plataforma",            icon: "fa-solid fa-chess-pawn",         category: "Inicio",     color: "#6b7280" },
+        { name: "Gran Maestro",         desc: "Alcanza 2000 puntos de ELO",                                    icon: "fa-solid fa-crown",              category: "ELO",        color: "#d97706" },
+        { name: "Candidato",            desc: "Alcanza 1800 puntos de ELO",                                    icon: "fa-solid fa-chess-queen",        category: "ELO",        color: "#7c3aed" },
+        { name: "Mata al Rey",          desc: "Gana una partida en menos de 20 movimientos",                  icon: "fa-solid fa-bolt",               category: "Habilidad",  color: "#dc2626" },
+        { name: "Sin Perder Ni Una",    desc: "Gana un torneo sin perder ninguna partida",                    icon: "fa-solid fa-shield-halved",      category: "Torneos",    color: "#16a34a" },
+        { name: "Fantasma",             desc: "Gana una partida sin perder ninguna pieza",                    icon: "fa-solid fa-ghost",              category: "Habilidad",  color: "#0891b2" },
+        // Participación
+        { name: "Coleccionista",        desc: "Participa en 10 torneos distintos",                            icon: "fa-solid fa-layer-group",        category: "Social",     color: "#0284c7" },
+        { name: "Maratoner",            desc: "Juega 50 partidas en total",                                    icon: "fa-solid fa-fire",               category: "Social",     color: "#ea580c" },
+        { name: "El Histórico",         desc: "Gana 3 torneos consecutivos",                                   icon: "fa-solid fa-book-bookmark",      category: "Torneos",    color: "#854d0e" },
+        { name: "Leyenda Viva",         desc: "Gana 10 torneos en total",                                      icon: "fa-solid fa-star",               category: "Torneos",    color: "#ca8a04" },
+        // Especiales
+        { name: "Verdugo",              desc: "Derrota al jugador con mayor ELO del torneo",                  icon: "fa-solid fa-skull",              category: "Especial",   color: "#7f1d1d" },
+        { name: "El Kamikaze",          desc: "Inscríbete siendo el jugador con menor ELO del torneo",        icon: "fa-solid fa-parachute-box",      category: "Especial",   color: "#1e3a5f" },
+        { name: "Coronación",           desc: "Gana una partida gracias a la promoción de un peón",          icon: "fa-solid fa-chess-king",         category: "Especial",   color: "#9333ea" },
+        { name: "Analista",             desc: "Usa el módulo Stockfish para analizar 5 posiciones",           icon: "fa-solid fa-microchip",          category: "Tecnología", color: "#0f766e" },
+        { name: "El Regreso",           desc: "Gana un torneo tras haber perdido el primero",                 icon: "fa-solid fa-rotate-left",        category: "Especial",   color: "#b45309" },
+    ];
+
+    list.innerHTML = allAchievements.map(a => `
+        <div class="card" style="display:flex; flex-direction:column; align-items:center; text-align:center; gap:12px; padding:1.5rem; border-top: 3px solid ${a.color};">
+            <div style="background:${a.color}; color:white; width:60px; height:60px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:1.6rem; flex-shrink:0;">
+                <i class="${a.icon}"></i>
+            </div>
+            <div>
+                <h4 style="margin:0 0 4px; font-size:1rem;">${a.name}</h4>
+                <p style="font-size:0.82rem; color:var(--text-muted); line-height:1.4; margin:0;">${a.desc}</p>
+            </div>
+            <span style="font-size:0.7rem; font-weight:700; letter-spacing:1px; color:${a.color}; background:${a.color}18; padding:2px 10px; border-radius:20px;">${a.category.toUpperCase()}</span>
+        </div>
+    `).join('');
 };
 
 let eloChartInstance = null;
@@ -369,10 +442,13 @@ function initModals() {
 }
 
 function initForms() {
+    console.log('initForms() ejecutado');
     const errorDiv = document.getElementById('login-error');
     const toggleLink = document.getElementById('toggle-auth-mode');
     const formLogin = document.getElementById('form-login');
     const formRegister = document.getElementById('form-register');
+    const formAddPlayer = document.getElementById('form-add-player');
+    const formCreatePlayer = document.getElementById('form-create-player');
     
     if(toggleLink) {
         toggleLink.addEventListener('click', (e) => {
@@ -436,27 +512,48 @@ function initForms() {
         });
     }
 
-    const formAddPlayer = document.getElementById('form-add-player');
     if (formAddPlayer) {
         formAddPlayer.addEventListener('submit', async (e) => {
             e.preventDefault();
-            const mode = document.getElementById('add-player-mode').value;
-            let data = {};
-            if (mode === 'existente') {
-                const select = document.getElementById('form-p-select');
-                if(select.selectedIndex === -1) { alert("Selecciona un jugador"); return; }
-                data.nombre = select.options[select.selectedIndex].text.split(' [ELO:')[0].trim();
-            } else {
-                data.nombre = document.getElementById('form-p-name').value;
-                data.email = document.getElementById('form-p-email').value;
-                data.elo = document.getElementById('form-p-elo').value;
-                const recaptchaToken = grecaptcha.getResponse(2) || grecaptcha.getResponse(1);
-                if(!recaptchaToken) { alert("Marca el reCAPTCHA"); return; }
-                data.recaptchaToken = recaptchaToken;
+            try {
+                const mode = document.getElementById('add-player-mode').value;
+                console.log('Inscribiendo jugador, modo:', mode, 'TorneoID:', currentTournamentId);
+                
+                if (!currentTournamentId) {
+                    alert("Error: No hay un ID de torneo activo. Por favor, cierra y vuelve a abrir el torneo.");
+                    return;
+                }
+
+                let data = {};
+                if (mode === 'existente') {
+                    const select = document.getElementById('form-p-select');
+                    if(select.selectedIndex === -1) { alert("Selecciona un jugador"); return; }
+                    data.nombre = select.options[select.selectedIndex].text.split(' [ELO:')[0].trim();
+                } else {
+                    data.nombre = document.getElementById('form-p-name').value;
+                    data.email = document.getElementById('form-p-email').value;
+                    data.elo = document.getElementById('form-p-elo').value;
+                    
+                    console.log('Obteniendo reCAPTCHA index 2...');
+                    const recaptchaToken = grecaptcha.getResponse(2);
+                    if(!recaptchaToken) { alert("Por favor, marca el reCAPTCHA de Inscripción"); return; }
+                    data.recaptchaToken = recaptchaToken;
+                }
+                
+                const targetId = window.currentTournamentId || currentTournamentId;
+                console.log('Llamando a API.inscribirJugador con ID:', targetId);
+                const res = await API.inscribirJugador(targetId, data);
+                if (res && (res.id || res.success)) { 
+                    alert("¡Jugador inscrito con éxito!");
+                    closeModal('add-player-modal'); 
+                    renderTournamentDetail(currentTournamentId); 
+                } else { 
+                    alert("Error: " + (res?.message || "Inscripción fallida (verifica si el jugador ya existe)")); 
+                }
+            } catch (err) {
+                console.error('Error en formAddPlayer:', err);
+                alert('Error crítico al inscribir: ' + err.message);
             }
-            const res = await API.inscribirJugador(currentTournamentId, data);
-            if (res && res.id) { closeModal('add-player-modal'); renderTournamentDetail(currentTournamentId); }
-            else { alert("Error: " + (res?.message || "Inscripción fallida")); }
         });
     }
 
@@ -472,6 +569,53 @@ function initForms() {
             });
             closeModal('edit-elo-modal'); renderUsers(); renderPlayersView(); renderGlobalRanking();
         });
+    }
+
+    if (formCreatePlayer) {
+        formCreatePlayer.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            try {
+                console.log('Formulario de crear jugador enviado');
+                const btn = formCreatePlayer.querySelector('button[type="submit"]');
+                btn.disabled = true;
+                btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Creando...';
+
+                const username = document.getElementById('create-p-name').value;
+                const email = document.getElementById('create-p-email').value;
+                const password = document.getElementById('create-p-pass').value;
+                const elo = parseInt(document.getElementById('create-p-elo').value) || 1200;
+                
+                console.log('Datos:', { username, email, elo });
+                console.log('Obteniendo reCAPTCHA index 3...');
+                const recaptchaToken = grecaptcha.getResponse(3);
+                
+                if(!recaptchaToken) { 
+                    alert('Por favor, marca el reCAPTCHA de Creación de Jugador'); 
+                    btn.disabled = false; 
+                    btn.innerHTML = 'Crear Jugador'; 
+                    return; 
+                }
+                
+                const res = await API.register(username, password, email, 'PLAYER', elo, recaptchaToken);
+                if (res) {
+                    alert('¡Jugador "' + username + '" creado con éxito!');
+                    closeModal('create-player-modal');
+                    formCreatePlayer.reset();
+                    renderPlayersView();
+                    renderGlobalRanking();
+                } else {
+                    alert('Error al crear el jugador. Posiblemente el nombre de usuario ya existe o reCAPTCHA expiró.');
+                }
+            } catch (err) {
+                console.error('Error en formCreatePlayer:', err);
+                alert('Error crítico al crear jugador: ' + err.message);
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = 'Crear Jugador';
+            }
+        });
+    } else {
+        console.error('Formulario form-create-player no encontrado');
     }
 }
 
@@ -545,6 +689,9 @@ function createTournamentUIItem(t) {
 let currentTournamentData = null;
 
 window.openTournamentDetail = async function(id) {
+    console.log('Abriendo torneo:', id);
+    window.currentTournamentId = id;
+    currentTournamentId = id;
     currentTournamentData = await API.getTorneo(id);
     showView('tournament-detail-view'); 
     renderTournamentDetail(id);

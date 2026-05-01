@@ -117,9 +117,22 @@
         </div>
     </div>
 
+    <div class="sidebar-overlay" id="sidebar-overlay" onclick="toggleSidebar()"></div>
+    
+    <header class="mobile-header">
+        <button class="menu-toggle" onclick="toggleSidebar()">
+            <i class="fa-solid fa-bars"></i>
+        </button>
+        <div class="mobile-brand">Digital Curator</div>
+        <div style="width: 40px;"></div> <!-- Spacer -->
+    </header>
+
     <div class="app-container">
         <!-- Sidebar -->
-        <aside class="sidebar">
+        <aside class="sidebar" id="main-sidebar" style="position:relative;">
+            <button class="sidebar-collapse-btn" id="sidebar-collapse-btn" onclick="toggleSidebarCollapse()" title="Ocultar menú">
+                <i class="fa-solid fa-chevron-left" id="collapse-icon"></i>
+            </button>
             <div class="brand">
                 <i class="fa-solid fa-chess-knight logo-icon"></i>
                 <h1>Digital Curator</h1>
@@ -143,38 +156,40 @@
             <nav class="nav-menu">
                 <div class="nav-section-title">ADMINISTRACIÓN</div>
                 <button class="nav-btn active" data-target="dashboard-view">
-                    <i class="fa-solid fa-chart-line"></i> Dashboard
+                    <i class="fa-solid fa-chart-line"></i> <span>Dashboard</span>
                 </button>
                 <button class="nav-btn" data-target="tournaments-view">
-                    <i class="fa-solid fa-trophy"></i> Mis Torneos
+                    <i class="fa-solid fa-trophy"></i> <span>Mis Torneos</span>
                 </button>
                 <button class="nav-btn" data-target="users-view">
-                    <i class="fa-solid fa-users-gear"></i> Gestión de Administradores
+                    <i class="fa-solid fa-users-gear"></i> <span>Gestión de Admins</span>
                 </button>
                 <button class="nav-btn" data-target="players-view">
-                    <i class="fa-solid fa-users"></i> Gestión de Jugadores
+                    <i class="fa-solid fa-users"></i> <span>Gestión de Jugadores</span>
                 </button>
                 <button class="nav-btn" data-target="ranking-view">
-                    <i class="fa-solid fa-ranking-star"></i> Ranking
+                    <i class="fa-solid fa-ranking-star"></i> <span>Ranking Global</span>
                 </button>
                 <button class="nav-btn" data-target="compare-view">
-                    <i class="fa-solid fa-scale-balanced"></i> Comparador H2H
+                    <i class="fa-solid fa-scale-balanced"></i> <span>Comparador H2H</span>
                 </button>
                 <button class="nav-btn" data-target="analysis-view">
-                    <i class="fa-solid fa-microchip"></i> Análisis Stockfish
+                    <i class="fa-solid fa-microchip"></i> <span>Análisis Stockfish</span>
+                </button>
+                <button class="nav-btn" data-target="achievements-view">
+                    <i class="fa-solid fa-medal"></i> <span>Insignias y Logros</span>
                 </button>
             </nav>
-            <div style="padding: 1rem; margin-top: auto; border-top: 1px solid var(--accent-light);">
-                <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom: 1rem; padding: 0 0.5rem;">
+            <div class="sidebar-footer">
+                <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom: 1rem; padding: 0 0.5rem;" class="user-info">
                     <span style="font-size:0.85rem; font-weight:600; color:var(--text-muted);"><i class="fa-solid fa-moon"></i> MODO OSCURO</span>
                     <label class="switch">
                         <input type="checkbox" id="dark-mode-toggle" onchange="toggleDarkMode()">
                         <span class="slider round"></span>
                     </label>
                 </div>
-                <button class="btn btn-secondary" onclick="logout()"
-                    style="width: 100%; justify-content: center; background: #fee2e2; color: #991b1b; border: 1px solid #fecaca;">
-                    <i class="fa-solid fa-right-from-bracket"></i> Cerrar Sesión
+                <button class="nav-btn" onclick="logout()" style="width: 100%; color: var(--loss-color); background: rgba(192, 108, 89, 0.05);">
+                    <i class="fa-solid fa-right-from-bracket"></i> <span>Cerrar Sesión</span>
                 </button>
             </div>
         </aside>
@@ -653,7 +668,38 @@
                     </div>
                 </div>
             </section>
+            <!-- J. ACHIEVEMENTS VIEW -->
+            <section id="achievements-view" class="view">
+                <header class="view-header">
+                    <h2>Muro de Logros</h2>
+                    <p style="color: var(--text-muted);">Tus hazañas y el camino por recorrer.</p>
+                </header>
+                <div id="full-achievements-list" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 20px;">
+                    <!-- Filled via JS -->
+                </div>
+            </section>
         </main>
+    </div>
+
+    <!-- Floating Action Button (FAB) -->
+    <div class="fab-container admin-only">
+        <div class="fab-options" id="fab-options">
+            <div class="fab-item" onclick="openModal('create-tournament-modal')">
+                <i class="fa-solid fa-trophy"></i>
+                <span class="fab-label">Nuevo Torneo</span>
+            </div>
+            <div class="fab-item" onclick="openModal('create-player-modal')">
+                <i class="fa-solid fa-user-plus"></i>
+                <span class="fab-label">Nuevo Jugador</span>
+            </div>
+            <div class="fab-item" onclick="exportTournamentPDF()">
+                <i class="fa-solid fa-file-pdf"></i>
+                <span class="fab-label">Exportar PDF</span>
+            </div>
+        </div>
+        <button class="fab-main" id="fab-main" onclick="toggleFab()">
+            <i class="fa-solid fa-plus"></i>
+        </button>
     </div>
 
     <!-- Modals -->
@@ -896,7 +942,7 @@
     </div>
 
     <script src="js/api.js"></script>
-    <script src="js/app_v2.js?v=2.0"></script>
+    <script src="js/app_v2.js?v=2.1"></script>
 </body>
 
 </html>
