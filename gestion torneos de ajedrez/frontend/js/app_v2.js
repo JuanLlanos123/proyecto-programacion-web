@@ -1181,7 +1181,7 @@ function updateAnalysisUI() {
 
 window.startAnalysis = function() {
     if (!stockfishWorker) {
-        stockfishWorker = typeof Stockfish === 'function' ? Stockfish() : new Worker('https://cdnjs.cloudflare.com/ajax/libs/stockfish.js/10.0.2/stockfish.js');
+        stockfishWorker = new Worker('js/stockfish.js');
     }
     
     document.getElementById('best-move').textContent = 'Analizando...';
