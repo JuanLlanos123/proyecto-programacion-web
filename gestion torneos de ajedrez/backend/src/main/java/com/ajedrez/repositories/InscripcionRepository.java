@@ -7,4 +7,5 @@ import java.util.List;
 public interface InscripcionRepository extends JpaRepository<Inscripcion, Long> {
     List<Inscripcion> findByTorneoId(Long torneoId);
     List<Inscripcion> findByUsuarioId(Long usuarioId);
+    long countByUsuarioId(Long usuarioId);
 }

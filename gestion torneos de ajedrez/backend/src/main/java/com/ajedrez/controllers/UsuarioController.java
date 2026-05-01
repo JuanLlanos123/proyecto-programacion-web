@@ -38,6 +38,9 @@ public class UsuarioController {
                 .orElse(ResponseEntity.notFound().build());
     }
 
+    @Autowired
+    private com.ajedrez.services.GamificationService gamificationService;
+
     @GetMapping("/{id}/stats")
     public ResponseEntity<?> getStats(@PathVariable Long id) {
         Usuario u = usuarioRepository.findById(id).orElse(null);
@@ -98,6 +101,7 @@ public class UsuarioController {
         response.put("eloHistory", eloHistoryRepository.findByUsuarioIdOrderByFechaAsc(id));
         response.put("nemesis", nemesis);
         response.put("trofeos", trophies);
+        response.put("logros", gamificationService.getUserAchievements(id));
 
         return ResponseEntity.ok(response);
     }

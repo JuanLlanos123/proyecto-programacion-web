@@ -143,7 +143,26 @@ window.showPlayerStats = async function(userId) {
             });
             document.getElementById('trophy-section').style.display = 'block';
         } else {
-            trophyContainer.innerHTML = '<div style="color:var(--text-muted); font-size:0.85rem; font-style:italic;">Aún no ha ganado trofeos en este sistema.</div>';
+            trophyContainer.innerHTML = '<div style="color:var(--text-muted); font-size:0.85rem; font-style:italic;">Aún no ha ganado trofeos.</div>';
+        }
+    }
+
+    // Renderizar Logros
+    const achievementContainer = document.getElementById('stat-achievements-container');
+    if (achievementContainer) {
+        achievementContainer.innerHTML = '';
+        if (data.logros && data.logros.length > 0) {
+            data.logros.forEach(logro => {
+                const div = document.createElement('div');
+                div.className = 'achievement-badge';
+                div.style = `background: var(--surface-card); border: 1.5px solid var(--primary-color); padding: 8px 12px; border-radius: 12px; display: flex; align-items: center; gap: 10px; font-size: 0.85rem; box-shadow: 0 4px 6px rgba(0,0,0,0.1); cursor: help;`;
+                div.title = logro.description;
+                div.innerHTML = `<i class="${logro.icon}" style="color:var(--primary-color); font-size:1.1rem;"></i> <strong>${logro.name}</strong>`;
+                achievementContainer.appendChild(div);
+            });
+            document.getElementById('achievement-section').style.display = 'block';
+        } else {
+            achievementContainer.innerHTML = '<div style="color:var(--text-muted); font-size:0.85rem; font-style:italic;">Aún no ha desbloqueado insignias.</div>';
         }
     }
 

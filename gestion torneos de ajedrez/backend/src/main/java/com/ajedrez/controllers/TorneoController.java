@@ -49,6 +49,9 @@ public class TorneoController {
     @Autowired
     private com.ajedrez.repositories.EloHistoryRepository eloHistoryRepository;
 
+    @Autowired
+    private com.ajedrez.services.GamificationService gamificationService;
+
     // Template para enviar mensajes de WebSockets al frontend
     @Autowired
     private org.springframework.messaging.simp.SimpMessagingTemplate messagingTemplate;
@@ -256,6 +259,22 @@ public class TorneoController {
             // Notificar vía WebSockets que el torneo terminó
             messagingTemplate.convertAndSend("/topic/notifications", "Torneo Finalizado: " + torneo.getNombre());
             
+            // Lógica de Logros (Achievements)
+            if (!inscripciones.isEmpty()) {
+                // Encontrar al ganador real usando desempates
+                Inscripcion winnerIns = inscripciones.stream().sorted((a, b) -> {
+                    if (b.getPuntosAcumulados() != a.getPuntosAcumulados()) 
+                        return Double.compare(b.getPuntosAcumulados(), a.getPuntosAcumulados());
+                    if (b.getBuchholz() != a.getBuchholz()) 
+                        return Double.compare(b.getBuchholz(), a.getBuchholz());
+                    return Double.compare(b.getSonnebornBerger(), a.getSonnebornBerger());
+                }).findFirst().orElse(null);
+
+                if (winnerIns != null) {
+                    gamificationService.checkTournamentAchievements(torneo, winnerIns.getUsuario());
+                }
+            }
+
             return ResponseEntity.ok(saved);
         }).orElse(ResponseEntity.notFound().build());
     }

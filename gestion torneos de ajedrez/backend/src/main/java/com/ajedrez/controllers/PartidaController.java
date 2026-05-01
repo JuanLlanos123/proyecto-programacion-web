@@ -15,10 +15,13 @@ import java.util.Map;
 public class PartidaController {
 
     @Autowired
-    private PartidaRepository partidaRepository;
+    private com.ajedrez.repositories.PartidaRepository partidaRepository;
 
     @Autowired
-    private EmparejamientoService emparejamientoService;
+    private com.ajedrez.services.EmparejamientoService emparejamientoService;
+
+    @Autowired
+    private com.ajedrez.services.GamificationService gamificationService;
     
     @GetMapping("/activas/count")
     public ResponseEntity<Long> countActiveMatches() {
@@ -50,6 +53,9 @@ public class PartidaController {
 
         // Recalcular puntos del torneo
         emparejamientoService.actualizarPuntos(partida.getTorneo().getId());
+        
+        // Chequear logros de partida
+        gamificationService.checkMatchAchievements(partida);
         
         return ResponseEntity.ok(partida);
     }
