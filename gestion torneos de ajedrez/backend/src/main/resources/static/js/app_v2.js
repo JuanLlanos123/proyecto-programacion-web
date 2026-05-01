@@ -410,7 +410,7 @@ function renderRounds(partidas, estado, tId, sistema, inscripciones) {
                         <span style="font-weight:600; color:${p.resultado==='0-1'?'#16a34a':'inherit'}">${p.negras?.username || 'ESPERANDO...'}</span>
                     </div>
                     <div style="flex:1; text-align:right;">
-                        <select onchange="setResult('${p.id}', this.value)" style="padding:4px; border-radius:6px; font-weight:bold; cursor:pointer;">
+                        <select ${estado === 'FINALIZADO' ? 'disabled' : ''} onchange="setResult('${p.id}', this.value)" style="padding:4px; border-radius:6px; font-weight:bold; cursor:pointer; ${estado === 'FINALIZADO' ? 'background:#f1f5f9; cursor:not-allowed;' : ''}">
                             <option value="P" ${p.resultado==='P'?'selected':''}>P</option>
                             <option value="1-0" ${p.resultado==='1-0'?'selected':''}>1-0</option>
                             <option value="0.5-0.5" ${p.resultado==='0.5-0.5'?'selected':''}>½</option>

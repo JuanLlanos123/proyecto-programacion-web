@@ -31,6 +31,12 @@ public class PartidaController {
         if(partida == null) return ResponseEntity.notFound().build();
 
         String resultado = body.get("resultado");
+        
+        // Bloquear si el torneo ya terminó
+        if ("FINALIZADO".equals(partida.getTorneo().getEstado())) {
+            return ResponseEntity.badRequest().body("No se pueden modificar resultados de un torneo finalizado.");
+        }
+
         partida.setResultado(resultado);
         partidaRepository.save(partida);
 
