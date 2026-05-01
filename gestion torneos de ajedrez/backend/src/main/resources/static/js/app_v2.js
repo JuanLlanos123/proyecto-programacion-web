@@ -1310,6 +1310,64 @@ window.initAnalysisBoard = function() {
     });
 };
 
+window.resetAnalysisBoard = function() {
+    if (!confirm("¿Reiniciar el tablero? Se perderá el progreso actual.")) return;
+    analysisGame = new Chess();
+    analysisBoard.position('start');
+    currentHistory = [];
+    currentMoveIndex = -1;
+    updateAnalysisUI();
+};
+
+window.exportAnalysisPDF = async function() {
+    try {
+        const { jsPDF } = window.jspdf;
+        if (!jsPDF) { alert("Error: Librería PDF no cargada"); return; }
+        const doc = new jsPDF();
+        
+        doc.setFontSize(22);
+        doc.setTextColor(139, 90, 43);
+        doc.text("ANÁLISIS DE PARTIDA - DIGITAL CURATOR", 105, 20, { align: "center" });
+        
+        doc.setFontSize(10);
+        doc.setTextColor(100, 100, 100);
+        doc.text(`Fecha: ${new Date().toLocaleString()}`, 105, 30, { align: "center" });
+        
+        const moveRows = [];
+        for (let i = 0; i < currentHistory.length; i += 2) {
+            moveRows.push([
+                Math.floor(i / 2) + 1,
+                currentHistory[i],
+                currentHistory[i + 1] || '-'
+            ]);
+        }
+        
+        doc.autoTable({
+            head: [['Ronda', 'Blancas', 'Negras']],
+            body: moveRows,
+            startY: 40,
+            headStyles: { fillColor: [139, 90, 43] },
+            styles: { halign: 'center' }
+        });
+        
+        let finalY = doc.lastAutoTable.finalY + 10;
+        doc.setFontSize(12);
+        doc.setTextColor(0, 0, 0);
+        doc.text("Notación PGN Completa:", 14, finalY);
+        
+        doc.setFontSize(9);
+        doc.setTextColor(80, 80, 80);
+        const pgnText = analysisGame.pgn();
+        const splitPgn = doc.splitTextToSize(pgnText, 180);
+        doc.text(splitPgn, 14, finalY + 7);
+        
+        doc.save("Analisis_Partida_ChessPro.pdf");
+    } catch (e) {
+        console.error(e);
+        alert("Error al generar PDF.");
+    }
+};
+
 window.loadPGN = function() {
     const pgn = document.getElementById('pgn-input').value;
     if (!pgn) return;
