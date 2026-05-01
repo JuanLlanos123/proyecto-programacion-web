@@ -1284,43 +1284,11 @@ window.initAnalysisBoard = function() {
         onDrop: (source, target) => {
             let move = analysisGame.move({ from: source, to: target, promotion: 'q' });
             if (move === null) return 'snapback';
-            addMoveToHistory(move);
+            currentHistory = analysisGame.history();
+            currentMoveIndex = currentHistory.length - 1;
             updateAnalysisUI();
         }
     });
-};
-
-function addMoveToHistory(move) {
-    const log = document.getElementById('move-history-log');
-    if (!log) return;
-    // Clear placeholder on first move
-    if (log.querySelector('span[style]')) log.innerHTML = '';
-    
-    const isWhite = move.color === 'w';
-    const moveNum = Math.floor(analysisGame.history().length / 2) + (isWhite ? 0 : 0);
-    const fullMoveNum = analysisGame.history().length;
-    const turnNum = Math.ceil(fullMoveNum / 2);
-    
-    const entry = document.createElement('div');
-    entry.style.cssText = `padding: 2px 6px; border-radius: 4px; margin-bottom:2px; display:flex; align-items:center; gap:8px;`;
-    entry.innerHTML = `
-        <span style="color:var(--text-muted); font-size:0.8rem; min-width:24px;">${turnNum}${isWhite ? '.' : '...'}</span>
-        <span style="display:inline-block; width:12px; height:12px; border-radius:50%; background:${isWhite ? '#f0d9b5; border:1px solid #999' : '#2d2d2d'}; flex-shrink:0;"></span>
-        <strong style="color:${isWhite ? 'var(--accent-color)' : 'var(--primary-color)'}; font-size:0.95rem; letter-spacing:1px;">${move.san}</strong>
-        <span style="font-size:0.75rem; color:var(--text-muted);">${move.from}&rarr;${move.to}</span>
-    `;
-    log.appendChild(entry);
-    log.scrollTop = log.scrollHeight;
-}
-
-window.clearMoveHistory = function() {
-    const log = document.getElementById('move-history-log');
-    if (log) log.innerHTML = '<span style="color:var(--text-muted); font-style:italic;">Mueve una pieza para registrar los movimientos...</span>';
-    analysisGame = new Chess();
-    if (analysisBoard) analysisBoard.position('start');
-    document.getElementById('best-move').textContent = 'Esperando datos...';
-    document.getElementById('eval-value').textContent = '0.00';
-    document.getElementById('eval-bar').style.width = '50%';
 };
 
 window.loadPGN = function() {
@@ -1356,8 +1324,26 @@ window.moveAnalysis = function(dir) {
 };
 
 function updateAnalysisUI() {
-    // Reset eval if needed
     document.getElementById('best-move').textContent = 'Análisis listo...';
+    
+    // Render move history
+    const moveList = document.getElementById('analysis-move-list');
+    if (moveList) {
+        moveList.innerHTML = '';
+        for (let i = 0; i < currentHistory.length; i += 2) {
+            const roundNum = Math.floor(i / 2) + 1;
+            const whiteMove = currentHistory[i];
+            const blackMove = currentHistory[i + 1] || '';
+            
+            const moveRow = `
+                <div style="color: var(--text-muted); font-weight: bold;">${roundNum}.</div>
+                <div style="padding: 2px 5px; background: ${i === currentMoveIndex ? '#fef3c7' : 'transparent'}; border-radius: 4px;">${whiteMove}</div>
+                <div style="padding: 2px 5px; background: ${i + 1 === currentMoveIndex ? '#fef3c7' : 'transparent'}; border-radius: 4px;">${blackMove}</div>
+            `;
+            moveList.innerHTML += moveRow;
+        }
+        moveList.scrollTop = moveList.scrollHeight;
+    }
 }
 
 window.startAnalysis = function() {
