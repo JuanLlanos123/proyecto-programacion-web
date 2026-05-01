@@ -265,9 +265,20 @@ window.openAddPlayerModal = async function(mode) {
     if (mode === 'existente') {
         try {
             const users = await API.getUsuarios();
+            // Filtro estricto: excluimos a cualquiera que sea ADMIN
+            const playersOnly = users.filter(u => {
+                const role = String(u.role || '').toUpperCase().trim();
+                return role !== 'ADMIN'; 
+            });
+            
             const select = document.getElementById('form-p-select');
             if (select) {
-                select.innerHTML = users.map(u => `<option value="${u.id}">${u.username}</option>`).join('');
+                if (playersOnly.length === 0) {
+                    select.innerHTML = '<option value="">No hay jugadores registrados</option>';
+                } else {
+                    // Mostramos el nombre y el rol para saber qué estamos filtrando
+                    select.innerHTML = playersOnly.map(u => `<option value="${u.id}">${u.username} [${u.role || 'Sin Rol'}]</option>`).join('');
+                }
             }
         } catch (err) {
             console.error("Error al cargar usuarios para la lista:", err);
@@ -369,6 +380,9 @@ async function renderDashboard() {
     document.getElementById('stat-active-tournaments').textContent = tournaments.filter(t => t.estado === 'EN_CURSO').length;
     const users = await API.getUsuarios();
     document.getElementById('stat-total-players').textContent = users.filter(u => u.role !== 'ADMIN').length;
+    
+    const activeMatches = await API.getActiveMatchesCount();
+    document.getElementById('stat-active-matches').textContent = activeMatches;
     
     const recentList = document.getElementById('recent-tournaments-list');
     recentList.innerHTML = '';
@@ -525,44 +539,60 @@ window.removePlayer = async function(tId, insId) {
 
 function renderRounds(partidas, estado, tId) {
     const container = document.getElementById('rounds-container');
+    if (!container) return;
     container.innerHTML = '';
+    
+    if (!partidas || partidas.length === 0) {
+        container.innerHTML = '<div style="text-align:center; padding:2rem; color:var(--text-muted);"><i class="fa-solid fa-ghost" style="font-size:2rem; margin-bottom:1rem; display:block;"></i> No hay partidas generadas para este torneo aún.</div>';
+        return;
+    }
+
+    console.log("Renderizando partidas:", partidas);
     
     // Agrupar por ronda
     const rounds = {};
     partidas.forEach(p => {
-        if (!rounds[p.rondaNumero]) rounds[p.rondaNumero] = [];
-        rounds[p.rondaNumero].push(p);
+        const rKey = p.rondaNumero || 1;
+        if (!rounds[rKey]) rounds[rKey] = [];
+        rounds[rKey].push(p);
     });
 
     Object.keys(rounds).sort((a, b) => b - a).forEach(rNum => {
         const div = document.createElement('div');
         div.className = 'round-section mt-4';
-        div.innerHTML = `<h4 class="mb-2">Ronda ${rNum}</h4>`;
+        div.style = 'margin-bottom: 2rem; border: 1px solid var(--accent-light); border-radius: 8px; padding: 1rem; background: #fff;';
+        div.innerHTML = `<h4 class="mb-2" style="border-bottom: 2px solid var(--accent-light); padding-bottom: 0.5rem;">Ronda ${rNum}</h4>`;
         
         rounds[rNum].forEach(p => {
             const row = document.createElement('div');
-            row.className = 'pairing-row card mb-2';
-            row.style = 'flex-direction: row; justify-content: space-between; align-items: center; padding: 0.8rem;';
+            row.className = 'pairing-row';
+            row.style = 'display: flex; justify-content: space-between; align-items: center; padding: 0.8rem; border-bottom: 1px solid #f0eade;';
             
-            const resultDisplay = p.resultado || 'Pendiente';
+            const resultDisplay = (p.resultado && p.resultado !== 'P') ? p.resultado : 'Pendiente';
             const cleanEstado = (estado || '').trim().toUpperCase();
-            const canEdit = cleanEstado === 'EN_CURSO' && (!p.resultado || p.resultado === 'null' || p.resultado === '');
+            
+            // Si no hay resultado definitivo, permitimos editar
+            const canEdit = !p.resultado || p.resultado === 'P' || p.resultado === 'null' || p.resultado === '';
             
             row.innerHTML = `
-                <div style="flex: 1;">
-                    <strong>${p.blancas ? p.blancas.username : '???'}</strong> vs <strong>${p.negras ? p.negras.username : 'BYE'}</strong>
+                <div style="flex: 2;">
+                    <button onclick="alert('DIAGNÓSTICO:\\nID: ${p.id}\\nEstado Torneo: ${cleanEstado}\\nResultado Actual: ${p.resultado}\\nBlancas: ${p.blancas ? p.blancas.username : 'NULL'}\\nNegras: ${p.negras ? p.negras.username : 'NULL'}')" 
+                            style="background:#3b82f6; color:white; border:none; border-radius:50%; width:20px; height:20px; cursor:pointer; font-size:10px; margin-right:5px;">i</button>
+                    <span style="font-weight: 600;">${p.blancas ? p.blancas.username : '???'}</span> 
+                    <span style="color: var(--accent-color); margin: 0 0.5rem;">vs</span> 
+                    <span style="font-weight: 600;">${p.negras ? p.negras.username : 'BYE'}</span>
                 </div>
                 <div style="flex: 1; text-align: center;">
-                    <span class="status-badge ${p.resultado ? 'status-active' : 'status-pending'}">${resultDisplay}</span>
+                    <span class="status-badge ${p.resultado && p.resultado !== 'P' ? 'status-completed' : 'status-pending'}">${resultDisplay}</span>
                 </div>
                 <div style="flex: 1; text-align: right;">
                     ${canEdit ? `
-                        <div class="btn-group">
-                            <button class="btn btn-secondary" style="padding: 2px 8px; font-size: 0.8rem; background: #16a34a; color: white;" onclick="setResult('${p.id}', '1-0')">1-0</button>
-                            <button class="btn btn-secondary" style="padding: 2px 8px; font-size: 0.8rem;" onclick="setResult('${p.id}', '0.5-0.5')">½-½</button>
-                            <button class="btn btn-secondary" style="padding: 2px 8px; font-size: 0.8rem; background: #dc2626; color: white;" onclick="setResult('${p.id}', '0-1')">0-1</button>
+                        <div style="display: flex; gap: 4px; justify-content: flex-end;">
+                            <button class="btn" style="padding: 4px 8px; font-size: 0.75rem; background: #16a34a; color: white; border-radius:4px;" onclick="setResult('${p.id}', '1-0')">1-0</button>
+                            <button class="btn" style="padding: 4px 8px; font-size: 0.75rem; background: #94a3b8; color: white; border-radius:4px;" onclick="setResult('${p.id}', '0.5-0.5')">½</button>
+                            <button class="btn" style="padding: 4px 8px; font-size: 0.75rem; background: #dc2626; color: white; border-radius:4px;" onclick="setResult('${p.id}', '0-1')">0-1</button>
                         </div>
-                    ` : ''}
+                    ` : '<span style="color:gray; font-size:12px;">Finalizada</span>'}
                 </div>
             `;
             div.appendChild(row);

@@ -4,10 +4,8 @@
  */
 
 // Configuración dinámica de la URL del servidor
-// Prioriza la conexión a Railway si estamos en la nube, de lo contrario usa el servidor local
-const API_BASE = (window.location.hostname.includes('railway.app') || window.location.hostname.includes('github.io'))
-    ? 'https://backend-lmeb-production.up.railway.app/api'
-    : 'http://localhost:8080/api';
+// Al estar el frontend servido por el mismo backend, usamos rutas relativas
+const API_BASE = '/api';
 window.API_BASE = API_BASE;
 
 /**
