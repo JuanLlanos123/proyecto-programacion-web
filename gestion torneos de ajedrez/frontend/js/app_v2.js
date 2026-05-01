@@ -1299,6 +1299,10 @@ window.initAnalysisBoard = function() {
         onDrop: (source, target) => {
             let move = analysisGame.move({ from: source, to: target, promotion: 'q' });
             if (move === null) return 'snapback';
+            
+            // Sync board to handle castling, en passant, and promotion visuals
+            setTimeout(() => { analysisBoard.position(analysisGame.fen()); }, 100);
+            
             currentHistory = analysisGame.history();
             currentMoveIndex = currentHistory.length - 1;
             updateAnalysisUI();
@@ -1340,6 +1344,12 @@ window.moveAnalysis = function(dir) {
 
 function updateAnalysisUI() {
     document.getElementById('best-move').textContent = 'Análisis listo...';
+    
+    // Update PGN text area with current game state
+    const pgnArea = document.getElementById('pgn-input');
+    if (pgnArea && document.activeElement !== pgnArea) {
+        pgnArea.value = analysisGame.pgn();
+    }
     
     // Render move history
     const moveList = document.getElementById('analysis-move-list');
