@@ -565,12 +565,25 @@
                         <div style="display: flex; flex-direction: column; gap: 20px;">
                             <div class="form-group">
                                 <label style="font-weight:700; margin-bottom:8px; display:block;">Importar Partida (Formato PGN)</label>
-                                <textarea id="pgn-input" class="form-control" rows="8" 
+                                <textarea id="pgn-input" class="form-control" rows="6" 
                                     placeholder="[Event &quot;Torneo Digital&quot;]\n1. e4 e5 2. Nf3 Nc6..." 
                                     style="font-family:'Courier New', Courier, monospace; font-size:0.85rem; background: var(--surface-color); border-color: var(--accent-light);"></textarea>
                                 <button class="btn btn-secondary mt-2" style="width: 100%; display:flex; align-items:center; justify-content:center; gap:8px;" onclick="loadPGN()">
                                     <i class="fa-solid fa-file-import"></i> Cargar Partida
                                 </button>
+                            </div>
+
+                            <!-- Move History Log -->
+                            <div>
+                                <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;">
+                                    <label style="font-weight:700; margin:0;"><i class="fa-solid fa-list-ol"></i> Historial de Movimientos</label>
+                                    <button onclick="clearMoveHistory()" style="background:none; border:1px solid var(--accent-light); border-radius:6px; padding:3px 10px; cursor:pointer; font-size:0.8rem; color:var(--text-muted);">
+                                        <i class="fa-solid fa-trash"></i> Limpiar
+                                    </button>
+                                </div>
+                                <div id="move-history-log" style="background:var(--surface-color); border:1px solid var(--accent-light); border-radius:12px; padding:10px; max-height:180px; overflow-y:auto; font-family:'Courier New', monospace; font-size:0.88rem; line-height:1.8;">
+                                    <span style="color:var(--text-muted); font-style:italic;">Mueve una pieza para registrar los movimientos...</span>
+                                </div>
                             </div>
 
                             <div id="analysis-results" style="padding: 15px; background: var(--surface-color); border-radius: 12px; border: 1px solid var(--accent-light);">
@@ -590,6 +603,7 @@
                     </div>
                 </div>
             </section>
+
 
             <section id="player-view" class="view">
                 <header class="view-header" style="border-bottom: none; margin-bottom:0;">
