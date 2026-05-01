@@ -133,7 +133,7 @@ window.runComparison = async function() {
     const tbody = document.querySelector('#compare-matches-table tbody');
     tbody.innerHTML = data.matches.map(p => `
         <tr>
-            <td>${p.torneo ? p.torneo.name : 'Amistoso'}</td>
+            <td>${p.torneo ? p.torneo.nombre : 'Amistoso'}</td>
             <td style="font-weight:bold;">${p.resultado}</td>
         </tr>
     `).join('');
