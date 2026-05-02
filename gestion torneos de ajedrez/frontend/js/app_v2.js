@@ -21,6 +21,7 @@ document.addEventListener('DOMContentLoaded', () => {
     initTheme();
     renderDashboard();
     renderTournamentList();
+    initAchievementManagement(); // Nueva función
 });
 
 function checkAuthStatus() {
@@ -344,15 +345,38 @@ window.showPlayerStats = async function(userId) {
 
     // Renderizar Logros
     const achievementContainer = document.getElementById('stat-achievements-container');
+    const user = JSON.parse(localStorage.getItem('currentUser') || '{}');
+    const isAdmin = String(user.role).toUpperCase() === 'ADMIN';
+
+    // Mostrar botón de otorgar logro solo a admins
+    const btnGrant = document.getElementById('btn-open-grant-achievement');
+    if (btnGrant) {
+        btnGrant.style.display = isAdmin ? 'block' : 'none';
+        btnGrant.onclick = () => {
+            document.getElementById('grant-achievement-userid').value = userId;
+            openModal('grant-achievement-modal');
+        };
+    }
+
     if (achievementContainer) {
         achievementContainer.innerHTML = '';
         if (data.logros && data.logros.length > 0) {
             data.logros.forEach(logro => {
                 const div = document.createElement('div');
                 div.className = 'achievement-badge';
-                div.style = `background: var(--surface-card); border: 1.5px solid var(--primary-color); padding: 8px 12px; border-radius: 12px; display: flex; align-items: center; gap: 10px; font-size: 0.85rem; box-shadow: 0 4px 6px rgba(0,0,0,0.1); cursor: help;`;
+                div.style = `background: var(--surface-card); border: 1.5px solid var(--primary-color); padding: 8px 12px; border-radius: 12px; display: flex; align-items: center; gap: 10px; font-size: 0.85rem; box-shadow: 0 4px 6px rgba(0,0,0,0.1); position:relative;`;
                 div.title = logro.description;
-                div.innerHTML = `<i class="${logro.icon}" style="color:var(--primary-color); font-size:1.1rem;"></i> <strong>${logro.name}</strong>`;
+                
+                let deleteHtml = '';
+                if (isAdmin) {
+                    deleteHtml = `<button onclick="confirmDeleteAchievement(${logro.id}, ${userId})" style="position:absolute; top:-8px; right:-8px; background:#dc2626; color:white; border:none; border-radius:50%; width:20px; height:20px; font-size:12px; cursor:pointer; display:flex; align-items:center; justify-content:center; box-shadow:0 2px 4px rgba(0,0,0,0.2);">&times;</button>`;
+                }
+
+                div.innerHTML = `
+                    <i class="${logro.icon}" style="color:var(--primary-color); font-size:1.1rem;"></i> 
+                    <strong>${logro.name}</strong>
+                    ${deleteHtml}
+                `;
                 achievementContainer.appendChild(div);
             });
             document.getElementById('achievement-section').style.display = 'block';
@@ -1478,4 +1502,40 @@ function updateEvalBar(cp) {
 const originalShowView = window.showView;
 window.showView = function(viewId) {
     originalShowView(viewId);
+};
+
+function initAchievementManagement() {
+    const form = document.getElementById('form-grant-achievement');
+    if (form) {
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const userId = document.getElementById('grant-achievement-userid').value;
+            const data = {
+                name: document.getElementById('grant-achievement-name').value,
+                description: document.getElementById('grant-achievement-desc').value,
+                icon: document.getElementById('grant-achievement-icon').value
+            };
+
+            const res = await API.grantAchievement(userId, data);
+            if (res) {
+                alert('¡Logro otorgado con éxito!');
+                closeModal('grant-achievement-modal');
+                form.reset();
+                showPlayerStats(userId); // Recargar
+            } else {
+                alert('Error al otorgar el logro.');
+            }
+        });
+    }
+}
+
+window.confirmDeleteAchievement = async function(achievementId, userId) {
+    if (confirm('¿Estás seguro de que quieres eliminar este logro?')) {
+        const res = await API.deleteAchievement(achievementId);
+        if (res) {
+            showPlayerStats(userId); // Recargar
+        } else {
+            alert('Error al eliminar el logro.');
+        }
+    }
 };

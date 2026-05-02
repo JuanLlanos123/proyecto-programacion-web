@@ -151,4 +151,18 @@ public class UsuarioController {
 
         return ResponseEntity.ok(response);
     }
+
+    @PostMapping("/{id}/logros")
+    public ResponseEntity<?> otorgarLogro(@PathVariable Long id, @RequestBody Map<String, String> body) {
+        Usuario u = usuarioRepository.findById(id).orElse(null);
+        if (u == null) return ResponseEntity.notFound().build();
+        gamificationService.grantAchievement(u, body.get("name"), body.get("description"), body.get("icon"));
+        return ResponseEntity.ok().build();
+    }
+
+    @DeleteMapping("/logros/{achievementId}")
+    public ResponseEntity<?> eliminarLogro(@PathVariable Long achievementId) {
+        gamificationService.deleteAchievement(achievementId);
+        return ResponseEntity.ok().build();
+    }
 }

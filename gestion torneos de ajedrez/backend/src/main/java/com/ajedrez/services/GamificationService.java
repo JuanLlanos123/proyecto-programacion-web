@@ -54,10 +54,14 @@ public class GamificationService {
         }
     }
 
-    private void grantAchievement(Usuario user, String name, String desc, String icon) {
+    public void grantAchievement(Usuario user, String name, String desc, String icon) {
         if (!achievementRepository.existsByUserIdAndName(user.getId(), name)) {
             achievementRepository.save(new Achievement(name, desc, icon, user));
         }
+    }
+
+    public void deleteAchievement(Long achievementId) {
+        achievementRepository.deleteById(achievementId);
     }
     
     public List<Achievement> getUserAchievements(Long userId) {

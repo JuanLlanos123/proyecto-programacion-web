@@ -1,3 +1,15 @@
+/* ==========================================================================
+   DEBUG & RESET (DESACTIVAR EN PRODUCCIÓN)
+   ========================================================================== */
+/* * { outline: 1px solid rgba(255, 0, 0, 0.3) !important; } */
+
+/* Reset de desbordamiento global */
+img, video, canvas, svg, input, select, textarea {
+    max-width: 100%;
+    height: auto;
+    box-sizing: border-box;
+}
+
 :root {
     --surface-color: #F9F7F2;
     --surface-card: #FFFFFF;
@@ -121,6 +133,7 @@ h1, h2, h3, h4 { font-family: var(--font-heading); color: var(--primary-color); 
     padding: var(--spacing-lg) 1rem;
     overflow-y: auto;
     overflow-x: hidden;
+    contain: paint;
     z-index: 1050;
     transition: width 0.3s ease, transform 0.3s ease;
     position: relative;
@@ -305,9 +318,6 @@ h1, h2, h3, h4 { font-family: var(--font-heading); color: var(--primary-color); 
     padding: 2rem 3rem;
     background-color: var(--surface-color);
     min-width: 0;
-}
-@media (max-width: 768px) {
-    .main-content { padding: 75px 1rem 5rem 1rem; }
 }
 @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
 .view { display: none; animation: fadeIn 0.3s ease; }
@@ -563,7 +573,7 @@ input:checked + .slider:before { transform: translateX(20px); }
     }
 
     .main-content {
-        padding: 80px 1rem 100px 1rem;
+        padding: 70px 1rem 80px 1rem !important; /* Ajustado para reducir espacio superior */
         height: auto;
         min-height: 100vh;
         overflow-x: hidden;
@@ -579,11 +589,12 @@ input:checked + .slider:before { transform: translateX(20px); }
     .view-header {
         flex-direction: column;
         align-items: flex-start;
-        gap: 1rem;
+        gap: 0.5rem; /* Reducido de 1rem */
+        margin-bottom: 1rem; /* Reducido */
     }
     .view-header .btn { width: 100%; justify-content: center; }
     
-    .stats-grid { grid-template-columns: 1fr; }
+    .stats-grid { grid-template-columns: 1fr; gap: 1rem; }
     .bracket-container { flex-direction: column; }
     .bracket-round { min-width: 100%; }
     
