@@ -556,7 +556,8 @@ input:checked + .slider:before { transform: translateX(20px); }
         display: block !important; 
         height: auto !important;
         min-height: 100vh;
-        width: 100%;
+        width: 100% !important;
+        margin: 0 !important;
         max-width: 100vw;
         overflow-x: hidden; 
         overflow-y: auto !important; 
@@ -586,6 +587,12 @@ input:checked + .slider:before { transform: translateX(20px); }
         overflow-y: visible;
     }
     
+    .data-table {
+        display: block;
+        width: 100%;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
     .data-table th, .data-table td { padding: 0.5rem; font-size: 0.85rem; }
     .analysis-grid { grid-template-columns: 1fr; }
     .compare-grid { grid-template-columns: 1fr; }
