@@ -4,10 +4,13 @@
 /* * { outline: 1px solid rgba(255, 0, 0, 0.3) !important; } */
 
 /* Reset de desbordamiento global */
+*, *::before, *::after {
+    box-sizing: border-box;
+}
+
 img, video, canvas, svg, input, select, textarea {
     max-width: 100%;
     height: auto;
-    box-sizing: border-box;
 }
 
 :root {
@@ -552,6 +555,8 @@ input:checked + .slider:before { transform: translateX(20px); }
     .app-container { 
         flex-direction: column; 
         height: 100vh; 
+        width: 100%;
+        max-width: 100vw;
         overflow-x: hidden; 
         overflow-y: auto; 
     }
@@ -573,7 +578,7 @@ input:checked + .slider:before { transform: translateX(20px); }
     }
 
     .main-content {
-        padding: 70px 1rem 80px 1rem !important; /* Ajustado para reducir espacio superior */
+        padding: 68px 1rem 80px 1rem !important; /* Ajuste final milimétrico */
         height: auto;
         min-height: 100vh;
         overflow-x: hidden;
