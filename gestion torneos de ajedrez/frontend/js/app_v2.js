@@ -242,24 +242,27 @@ window.renderAchievements = function() {
     if (!list) return;
     
     const allAchievements = [
-        // Habilidad
-        { name: "Primeros Pasos",      desc: "Juega tu primera partida oficial en la plataforma",            icon: "fa-solid fa-chess-pawn",         category: "Inicio",     color: "#6b7280" },
-        { name: "Gran Maestro",         desc: "Alcanza 2000 puntos de ELO",                                    icon: "fa-solid fa-crown",              category: "ELO",        color: "#d97706" },
-        { name: "Candidato",            desc: "Alcanza 1800 puntos de ELO",                                    icon: "fa-solid fa-chess-queen",        category: "ELO",        color: "#7c3aed" },
-        { name: "Mata al Rey",          desc: "Gana una partida en menos de 20 movimientos",                  icon: "fa-solid fa-bolt",               category: "Habilidad",  color: "#dc2626" },
-        { name: "Sin Perder Ni Una",    desc: "Gana un torneo sin perder ninguna partida",                    icon: "fa-solid fa-shield-halved",      category: "Torneos",    color: "#16a34a" },
-        { name: "Fantasma",             desc: "Gana una partida sin perder ninguna pieza",                    icon: "fa-solid fa-ghost",              category: "Habilidad",  color: "#0891b2" },
-        // Participación
-        { name: "Coleccionista",        desc: "Participa en 10 torneos distintos",                            icon: "fa-solid fa-layer-group",        category: "Social",     color: "#0284c7" },
-        { name: "Maratoner",            desc: "Juega 50 partidas en total",                                    icon: "fa-solid fa-fire",               category: "Social",     color: "#ea580c" },
-        { name: "El Histórico",         desc: "Gana 3 torneos consecutivos",                                   icon: "fa-solid fa-book-bookmark",      category: "Torneos",    color: "#854d0e" },
-        { name: "Leyenda Viva",         desc: "Gana 10 torneos en total",                                      icon: "fa-solid fa-star",               category: "Torneos",    color: "#ca8a04" },
-        // Especiales
-        { name: "Verdugo",              desc: "Derrota al jugador con mayor ELO del torneo",                  icon: "fa-solid fa-skull",              category: "Especial",   color: "#7f1d1d" },
-        { name: "El Kamikaze",          desc: "Inscríbete siendo el jugador con menor ELO del torneo",        icon: "fa-solid fa-parachute-box",      category: "Especial",   color: "#1e3a5f" },
-        { name: "Coronación",           desc: "Gana una partida gracias a la promoción de un peón",          icon: "fa-solid fa-chess-king",         category: "Especial",   color: "#9333ea" },
-        { name: "Analista",             desc: "Usa el módulo Stockfish para analizar 5 posiciones",           icon: "fa-solid fa-microchip",          category: "Tecnología", color: "#0f766e" },
-        { name: "El Regreso",           desc: "Gana un torneo tras haber perdido el primero",                 icon: "fa-solid fa-rotate-left",        category: "Especial",   color: "#b45309" },
+        // --- HITOS DE ELO ---
+        { name: "Aspirante",          desc: "Alcanza un ELO de 1400",            icon: "fa-solid fa-chess-knight",    category: "ELO",        color: "#94a3b8" },
+        { name: "Estratega",          desc: "Alcanza un ELO de 1600",            icon: "fa-solid fa-chess-bishop",    category: "ELO",        color: "#64748b" },
+        { name: "Maestro Local",       desc: "Alcanza un ELO de 1800",            icon: "fa-solid fa-chess-rook",      category: "ELO",        color: "#475569" },
+        { name: "Candidato a Maestro", desc: "Alcanza un ELO de 2000",            icon: "fa-solid fa-chess-queen",     category: "ELO",        color: "#7c3aed" },
+        { name: "Gran Maestro GM",     desc: "Alcanza un ELO de 2300",            icon: "fa-solid fa-crown",           category: "ELO",        color: "#d97706" },
+        { name: "Super GM",           desc: "Alcanza un ELO de 2600",            icon: "fa-solid fa-gem",             category: "ELO",        color: "#be185d" },
+
+        // --- EXPERIENCIA (Partidas) ---
+        { name: "Iniciado",           desc: "Juega 10 partidas totales",         icon: "fa-solid fa-pawn",            category: "Partidas",   color: "#10b981" },
+        { name: "Veterano",           desc: "Juega 50 partidas totales",         icon: "fa-solid fa-shield-halved",   category: "Partidas",   color: "#059669" },
+        { name: "Guerrero del Tablero",desc: "Juega 100 partidas totales",        icon: "fa-solid fa-swords",          category: "Partidas",   color: "#047857" },
+        { name: "Incansable",         desc: "Juega 250 partidas totales",        icon: "fa-solid fa-hourglass-half",   category: "Partidas",   color: "#065f46" },
+        { name: "Leyenda Activa",     desc: "Juega 500 partidas totales",        icon: "fa-solid fa-infinity",        category: "Partidas",   color: "#064e3b" },
+
+        // --- GLORIA (Torneos Ganados) ---
+        { name: "Primera Victoria",    desc: "Gana tu primer torneo",             icon: "fa-solid fa-trophy",          category: "Torneos",    color: "#fbbf24" },
+        { name: "Triunfador",         desc: "Gana 3 torneos en total",           icon: "fa-solid fa-award",           category: "Torneos",    color: "#f59e0b" },
+        { name: "Coleccionista de Oro",desc: "Gana 5 torneos en total",           icon: "fa-solid fa-medal",           category: "Torneos",    color: "#d97706" },
+        { name: "Dominador Absoluto",  desc: "Gana 10 torneos en total",          icon: "fa-solid fa-ranking-star",    category: "Torneos",    color: "#92400e" },
+        { name: "Inmortal",           desc: "Gana 25 torneos en total",          icon: "fa-solid fa-mountain",        category: "Torneos",    color: "#451a03" }
     ];
 
     list.innerHTML = allAchievements.map(a => `
