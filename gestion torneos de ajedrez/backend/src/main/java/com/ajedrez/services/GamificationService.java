@@ -55,8 +55,12 @@ public class GamificationService {
     }
 
     public void grantAchievement(Usuario user, String name, String desc, String icon) {
-        if (!achievementRepository.existsByUserIdAndName(user.getId(), name)) {
-            achievementRepository.save(new Achievement(name, desc, icon, user));
+        System.out.println("Intentando otorgar logro: " + name + " al usuario: " + user.getUsername());
+        boolean exists = achievementRepository.existsByUserIdAndName(user.getId(), name);
+        System.out.println("¿El logro ya existe?: " + exists);
+        if (!exists) {
+            Achievement saved = achievementRepository.save(new Achievement(name, desc, icon, user));
+            System.out.println("Logro guardado en BD con ID: " + saved.getId());
         }
     }
 

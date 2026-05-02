@@ -278,6 +278,32 @@ const API = {
             console.error("Error al actualizar ELO:", error);
             return null;
         }
+    },
+
+    async grantAchievement(userId, achievementData) {
+        try {
+            const response = await fetchWithAuth(`${API_BASE}/usuarios/${userId}/logros`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(achievementData)
+            });
+            return response.ok;
+        } catch (error) {
+            console.error("Error al otorgar logro:", error);
+            return false;
+        }
+    },
+
+    async deleteAchievement(achievementId) {
+        try {
+            const response = await fetchWithAuth(`${API_BASE}/usuarios/logros/${achievementId}`, {
+                method: 'DELETE'
+            });
+            return response.ok;
+        } catch (error) {
+            console.error("Error al eliminar logro:", error);
+            return false;
+        }
     }
 };
 
