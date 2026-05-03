@@ -40,7 +40,7 @@
             style="position:absolute; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.4); backdrop-filter: blur(5px); pointer-events: none;">
         </div>
         <div class="card"
-            style="width: 400px; text-align: center; background: rgba(255,255,255,0.95); padding: 2rem; border-radius: 12px; box-shadow: 0 20px 50px rgba(0,0,0,0.5); border: 2px solid #8b5a2b; position:relative; z-index:1;">
+            style="width: 90%; max-width: 400px; text-align: center; background: rgba(255,255,255,0.95); padding: 2rem; border-radius: 12px; box-shadow: 0 20px 50px rgba(0,0,0,0.5); border: 2px solid #8b5a2b; position:relative; z-index:1;">
             <i class="fa-solid fa-chess-knight"
                 style="font-size: 3.5rem; color: #8b5a2b; margin-bottom: 1rem; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.2));"></i>
             <h2 style="color: #4a3018; font-size: 1.8rem; margin-bottom: 0.5rem; font-weight: 800;">Digital Curator</h2>
@@ -129,7 +129,7 @@
 
     <div class="app-container">
         <!-- Sidebar -->
-        <aside class="sidebar" id="main-sidebar" style="position:relative;">
+        <aside class="sidebar" id="main-sidebar">
             <button class="sidebar-collapse-btn" id="sidebar-collapse-btn" onclick="toggleSidebarCollapse()" title="Ocultar menú">
                 <i class="fa-solid fa-chevron-left" id="collapse-icon"></i>
             </button>
@@ -489,7 +489,7 @@
                 </div>
 
                 <div id="compare-results" style="display: none;" class="mt-4">
-                    <div style="display: grid; grid-template-columns: 1fr 1.5fr; gap: 20px;">
+                    <div class="compare-grid" style="gap: 20px;">
                         <!-- Mini Stats & Head to Head -->
                         <div style="display: flex; flex-direction: column; gap: 20px;">
                             <div class="card" style="padding: 20px; background: var(--surface-card); border: 1px solid var(--accent-light);">
@@ -550,7 +550,7 @@
                 </header>
 
                 <div class="card mt-4" style="padding: 25px; background: var(--surface-card); border: 1px solid var(--accent-light);">
-                    <div style="display: grid; grid-template-columns: 1.2fr 1fr; gap: 30px;">
+                    <div class="analysis-grid" style="gap: 30px;">
                         <div>
                             <div id="analysis-board" style="width: 100%; max-width: 480px; margin: 0 auto; border: 5px solid var(--surface-color); border-radius: 8px; box-shadow: 0 10px 30px rgba(0,0,0,0.1);"></div>
                             <div style="display: flex; gap: 10px; justify-content: center; margin-top: 20px;">
@@ -885,10 +885,15 @@
         <div class="modal-content" style="max-width: 800px;">
             <div class="modal-header">
                 <h3 style="display:flex; align-items:center; gap:10px;"><i class="fa-solid fa-chart-line"></i> Ficha de Jugador</h3>
-                <button class="btn-close" onclick="closeModal('player-stats-modal')" style="background:none; border:none; font-size:1.5rem; cursor:pointer;">&times;</button>
+                <div style="display:flex; gap:10px; align-items:center;">
+                    <button class="btn btn-primary admin-only" id="btn-open-grant-achievement" style="padding: 5px 12px; font-size: 0.8rem; display:none;">
+                        <i class="fa-solid fa-award"></i> Otorgar Logro
+                    </button>
+                    <button class="btn-close" onclick="closeModal('player-stats-modal')" style="background:none; border:none; font-size:1.5rem; cursor:pointer;">&times;</button>
+                </div>
             </div>
             <div id="player-stats-body" style="padding: 20px;">
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                <div class="stats-modal-grid" style="gap: 20px;">
                     <div class="card" style="padding: 15px; background: var(--surface-color); border: 1px solid var(--accent-light);">
                         <h4 id="stat-player-name-new" style="margin:0; font-size:1.4rem; color:var(--accent-color);">Nombre</h4>
                         <p id="stat-player-email" style="color:var(--text-muted); margin-bottom:15px;"></p>
@@ -949,8 +954,33 @@
         </div>
     </div>
 
-    <script src="js/api.js"></script>
-    <script src="js/app_v2.js?v=2.6"></script>
-</body>
+    <!-- Modal: Grant Achievement -->
+    <div id="grant-achievement-modal" class="modal-overlay">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Otorgar Logro Manual</h3>
+                <button class="close-btn" onclick="closeModal('grant-achievement-modal')">&times;</button>
+            </div>
+            <form id="form-grant-achievement">
+                <input type="hidden" id="grant-achievement-userid">
+                <div class="form-group">
+                    <label>Nombre del Logro</label>
+                    <input type="text" id="grant-achievement-name" class="form-control" required placeholder="Ej: Veterano de Guerra">
+                </div>
+                <div class="form-group">
+                    <label>Descripción</label>
+                    <textarea id="grant-achievement-desc" class="form-control" required placeholder="Ej: Has ganado 5 partidas seguidas..."></textarea>
+                </div>
+                <div class="form-group">
+                    <label>Icono (FontAwesome)</label>
+                    <input type="text" id="grant-achievement-icon" class="form-control" required value="fa-solid fa-medal">
+                </div>
+                <button type="submit" class="btn btn-primary w-100">Otorgar Logro</button>
+            </form>
+        </div>
+    </div>
 
+    <script src="js/api.js"></script>
+    <script src="js/app_v2.js"></script>
+</body>
 </html>
