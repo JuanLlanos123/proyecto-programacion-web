@@ -630,17 +630,10 @@ function initForms() {
             const res = await API.register(user, pass, email, 'ADMIN', elo, recaptchaToken); 
             if (typeof grecaptcha !== 'undefined') grecaptcha.reset(1);
             if (res) { 
-                alert("¡Cuenta creada con éxito! Iniciando sesión..."); 
-                const loginRes = await API.login(user, pass, recaptchaToken);
-                if (loginRes && loginRes.token) {
-                    localStorage.setItem('jwt_token', loginRes.token);
-                    localStorage.setItem('currentUser', JSON.stringify(loginRes.usuario));
-                    checkAuthStatus(); 
-                    connectWebSocket(); 
-                    renderDashboard();
-                } else {
-                    toggleAuthMode(); // Fallback a login manual si falla el auto-login
-                }
+                alert("¡Cuenta creada con éxito! Ahora puedes iniciar sesión."); 
+                toggleAuthMode();
+            } else {
+                alert("Error al crear la cuenta. Es posible que el usuario ya exista o el reCAPTCHA sea inválido.");
             }
         });
     }
@@ -780,16 +773,22 @@ function initForms() {
 
 // DASHBOARD
 async function renderDashboard() {
-    const tournaments = await API.getTorneos();
-    const users = await API.getUsuarios();
-    document.getElementById('stat-active-tournaments').textContent = tournaments.filter(t => t.estado === 'EN_CURSO').length;
-    document.getElementById('stat-total-players').textContent = users.filter(u => String(u.role || '').toUpperCase() !== 'ADMIN').length;
-    const activeMatches = await API.getActiveMatchesCount();
-    document.getElementById('stat-active-matches').textContent = activeMatches;
-    const recentList = document.getElementById('recent-tournaments-list');
-    recentList.innerHTML = '';
-    [...tournaments].reverse().slice(0, 10).forEach(t => recentList.appendChild(createTournamentUIItem(t)));
-    renderGlobalRanking();
+    try {
+        const tournaments = await API.getTorneos() || [];
+        const users = await API.getUsuarios() || [];
+        document.getElementById('stat-active-tournaments').textContent = tournaments.filter(t => t.estado === 'EN_CURSO').length;
+        document.getElementById('stat-total-players').textContent = users.filter(u => String(u.role || '').toUpperCase() !== 'ADMIN').length;
+        const activeMatches = await API.getActiveMatchesCount() || 0;
+        document.getElementById('stat-active-matches').textContent = activeMatches;
+        const recentList = document.getElementById('recent-tournaments-list');
+        if (recentList) {
+            recentList.innerHTML = '';
+            [...tournaments].reverse().slice(0, 10).forEach(t => recentList.appendChild(createTournamentUIItem(t)));
+        }
+        await renderGlobalRanking();
+    } catch (e) {
+        console.error('Error en renderDashboard:', e);
+    }
 }
 
 async function renderTournamentList() {
