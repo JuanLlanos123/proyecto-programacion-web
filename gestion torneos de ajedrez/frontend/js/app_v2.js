@@ -274,6 +274,12 @@ function renderCompareChart(h1, h2, n1, n2) {
 
 
 window.showView = function(viewId) {
+    const userStr = localStorage.getItem('currentUser');
+    if (!userStr && viewId !== 'login-overlay') {
+        document.getElementById('login-overlay').style.display = 'flex';
+        return;
+    }
+
     document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
     const target = document.getElementById(viewId);
     if (target) target.classList.add('active');
@@ -1798,8 +1804,15 @@ async function updateOpeningExplorer(fen) {
     if (!nameEl || !candEl) return;
 
     try {
-        const res = await fetch(`https://explorer.lichess.ovh/masters?fen=${encodeURIComponent(fen)}`);
-        const data = await res.json();
+        // Intentar primero con la base de datos de Maestros
+        let res = await fetch(`https://explorer.lichess.ovh/masters?fen=${encodeURIComponent(fen)}`);
+        let data = await res.json();
+
+        // Si no hay datos, intentar con la base de datos general de Lichess
+        if ((!data.opening || !data.moves || data.moves.length === 0) && fen.split(' ')[4] < 50) {
+            res = await fetch(`https://explorer.lichess.ovh/lichess?fen=${encodeURIComponent(fen)}`);
+            data = await res.json();
+        }
 
         if (data.opening) {
             nameEl.textContent = data.opening.name;
@@ -1812,14 +1825,14 @@ async function updateOpeningExplorer(fen) {
                 <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.85rem; background: rgba(139, 90, 43, 0.05); padding: 6px 10px; border-radius: 6px; border: 1px solid rgba(139, 90, 43, 0.1);">
                     <span style="font-weight: 700; color: var(--accent-color);">${m.san}</span>
                     <div style="display:flex; gap:8px; align-items:center;">
-                        <span style="color: #16a34a; font-weight:700;">${Math.round(m.white)}%</span>
-                        <span style="color: var(--text-muted); font-size: 0.7rem;">${Math.round(m.draws)}%</span>
-                        <span style="color: #ef4444; font-weight:700;">${Math.round(m.black)}%</span>
+                        <span style="color: #16a34a; font-weight:700;">${Math.round(m.white || 0)}%</span>
+                        <span style="color: var(--text-muted); font-size: 0.7rem;">${Math.round(m.draws || 0)}%</span>
+                        <span style="color: #ef4444; font-weight:700;">${Math.round(m.black || 0)}%</span>
                     </div>
                 </div>
             `).join('');
         } else {
-            candEl.innerHTML = '<div style="font-size: 0.75rem; color: var(--text-muted); font-style:italic;">No hay jugadas maestras registradas en esta posición.</div>';
+            candEl.innerHTML = '<div style="font-size: 0.75rem; color: var(--text-muted); font-style:italic;">No hay jugadas registradas en esta posición.</div>';
         }
     } catch (err) {
         console.error("Explorer Error:", err);

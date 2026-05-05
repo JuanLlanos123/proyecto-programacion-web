@@ -36,7 +36,7 @@
 
     <!-- LOGIN OVERLAY -->
     <div id="login-overlay"
-        style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:url('img/bg-chess.png') no-repeat center center; background-size: cover; z-index:9999; justify-content:center; align-items:center;">
+        style="display:flex; position:fixed; top:0; left:0; width:100%; height:100%; background:url('img/bg-chess.png') no-repeat center center; background-size: cover; z-index:9999; justify-content:center; align-items:center;">
         <div
             style="position:absolute; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.4); backdrop-filter: blur(5px); pointer-events: none;">
         </div>
@@ -206,7 +206,7 @@
         <main class="main-content">
 
             <!-- A. ADMIN DASHBOARD VIEW -->
-            <section id="dashboard-view" class="view active">
+            <section id="dashboard-view" class="view">
                 <header class="view-header">
                     <h2>Panel de Control Avanzado</h2>
                     <button class="btn btn-primary btn-large admin-only" onclick="openModal('create-tournament-modal')">
@@ -239,6 +239,11 @@
                     </div>
                 </div>
 
+                <div class="mt-4">
+                    <h3>Próximos Torneos</h3>
+                    <div id="recent-tournaments-list" class="mt-2"
+                        style="display:grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 1.5rem;">
+                        <!-- Populated via JS -->
                     </div>
                 </div>
 
