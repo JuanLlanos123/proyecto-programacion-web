@@ -321,8 +321,12 @@ window.toggleFab = function() {
 };
 
 window.renderAchievements = function() {
+    console.log('Iniciando render de logros...');
     const list = document.getElementById('full-achievements-list');
-    if (!list) return;
+    if (!list) {
+        console.error('No se encontró el contenedor full-achievements-list');
+        return;
+    }
     
     const allAchievements = [
         // --- HITOS DE ELO ---
@@ -349,7 +353,7 @@ window.renderAchievements = function() {
     ];
 
     list.innerHTML = allAchievements.map(a => `
-        <div class="card" style="display:flex; flex-direction:column; align-items:center; text-align:center; gap:12px; padding:1.5rem; border-top: 4px solid ${a.color}; background: var(--surface-card); box-shadow: var(--shadow-card); transition: transform 0.3s ease;">
+        <div class="card achievement-card-main" style="display:flex; flex-direction:column; align-items:center; text-align:center; gap:12px; padding:1.5rem; border-top: 4px solid ${a.color}; background: var(--surface-card); box-shadow: var(--shadow-card); transition: transform 0.3s ease; border-radius: 12px;">
             <div style="background:${a.color}20; color:${a.color}; width:64px; height:64px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:1.8rem; flex-shrink:0; border: 2px solid ${a.color}40;">
                 <i class="${a.icon}"></i>
             </div>
@@ -2191,14 +2195,7 @@ window.togglePassword = function(inputId) {
     }
 };
 
-window.toggleSidebar = function() {
-    const sidebar = document.querySelector('.sidebar');
-    const overlay = document.getElementById('sidebar-overlay');
-    if (sidebar) {
-        sidebar.classList.toggle('active');
-        if (overlay) overlay.classList.toggle('active');
-    }
-};
+// Las funciones de toggle ya están definidas arriba
 
 const chessSounds = {
     move: new Audio('https://lichess.org/assets/sound/standard/Move.ogg'),
