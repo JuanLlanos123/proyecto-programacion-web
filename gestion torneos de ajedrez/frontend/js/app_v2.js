@@ -1048,7 +1048,7 @@ async function renderTournamentDetail(id) {
             if(fideBtn) fideBtn.style.display = 'block';
             
             const arbiterTab = document.querySelector('.tab-btn[data-tab="tab-arbiter"]');
-            if(arbiterTab) arbiterTab.style.display = 'block';
+            if(arbiterTab) arbiterTab.style.display = 'inline-block';
         } else {
             const fideBtn = document.querySelector('button[onclick*="exportFide"]');
             if(fideBtn) fideBtn.style.display = 'none';
@@ -2115,7 +2115,9 @@ async function updateOpeningExplorer(fen) {
     try {
         console.log('Fetching opening for FEN:', cleanFen);
         // Intentar primero con la base de datos de Maestros
-        let res = await fetch(`https://explorer.lichess.ovh/masters?fen=${encodeURIComponent(cleanFen)}`);
+        let res = await fetch(`https://explorer.lichess.ovh/masters?fen=${encodeURIComponent(cleanFen)}`, {
+            headers: { 'Accept': 'application/json' }
+        });
         if (!res.ok) throw new Error('Lichess API error');
         let data = await res.json();
 
@@ -2147,7 +2149,14 @@ async function updateOpeningExplorer(fen) {
         }
     } catch (err) {
         console.error("Explorer Error:", err);
-        nameEl.textContent = "Error al conectar con el explorador";
+        // Fallback for API 401 errors
+        if (cleanFen.includes("rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR")) nameEl.textContent = "Apertura Abierta / Peón de Rey";
+        else if (cleanFen.includes("rnbqkbnr/pppppppp/8/8/3P4/8/PPP1PPPP/RNBQKBNR")) nameEl.textContent = "Apertura Cerrada / Peón de Dama";
+        else if (cleanFen.includes("rnbqkbnr/pppppppp/8/8/8/2N5/PPPPPPPP/R1BQKBNR")) nameEl.textContent = "Apertura Reti";
+        else if (cleanFen === "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq -") nameEl.textContent = "Posición Inicial";
+        else nameEl.textContent = "Apertura Custom / Variante Desconocida";
+        
+        candEl.innerHTML = '<div style="font-size: 0.75rem; color: var(--text-muted); font-style:italic;">No se pudo cargar la base de datos de Lichess.</div>';
     }
 }
 
@@ -2405,10 +2414,10 @@ window.togglePassword = function(inputId) {
 // Las funciones de toggle ya están definidas arriba
 
 const chessSounds = {
-    move: new Audio('https://lichess.org/assets/sound/standard/Move.ogg'),
-    capture: new Audio('https://lichess.org/assets/sound/standard/Capture.ogg'),
-    check: new Audio('https://lichess.org/assets/sound/standard/Check.ogg'),
-    victory: new Audio('https://lichess.org/assets/sound/standard/Victory.ogg')
+    move: new Audio('https://images.chesscomfiles.com/chess-themes/sounds/_MP3_/default/move-self.mp3'),
+    capture: new Audio('https://images.chesscomfiles.com/chess-themes/sounds/_MP3_/default/capture.mp3'),
+    check: new Audio('https://images.chesscomfiles.com/chess-themes/sounds/_MP3_/default/move-check.mp3'),
+    victory: new Audio('https://images.chesscomfiles.com/chess-themes/sounds/_MP3_/default/game-end.mp3')
 };
 
 window.playChessSound = function(type) {

@@ -21,5 +21,6 @@ com\ajedrez\repositories\EloHistoryRepository.class
 com\ajedrez\AjedrezApplication.class
 com\ajedrez\controllers\AuthController.class
 com\ajedrez\security\WebSocketConfig.class
+com\ajedrez\services\FideExportService.class
 com\ajedrez\services\RecaptchaService.class
 com\ajedrez\models\EloHistory.class
