@@ -606,7 +606,6 @@
                                 <button class="btn btn-secondary" onclick="moveAnalysis(-1)" title="Retroceder"><i class="fa-solid fa-chevron-left"></i></button>
                                 <button class="btn btn-secondary" onclick="moveAnalysis(1)" title="Avanzar"><i class="fa-solid fa-chevron-right"></i></button>
                                 <button class="btn btn-secondary" onclick="resetAnalysisBoard()" title="Reiniciar Tablero"><i class="fa-solid fa-rotate-right"></i></button>
-                                <button class="btn btn-secondary" onclick="exportAnalysisPDF()" title="Exportar PDF"><i class="fa-solid fa-file-pdf"></i></button>
                                 <button class="btn btn-primary" onclick="runFullAnalysis()" style="background: #20b2aa; border:none; display:flex; align-items:center; gap:8px;" title="Evaluar toda la partida">
                                     <i class="fa-solid fa-microscope"></i> Análisis Completo
                                 </button>
@@ -616,8 +615,11 @@
                                 <button class="btn btn-primary" onclick="startAnalysis()" style="background: var(--accent-color); border:none; display:flex; align-items:center; gap:8px;">
                                     <i class="fa-solid fa-play"></i> Iniciar Análisis
                                 </button>
-                                <button class="btn btn-secondary" onclick="downloadPGN()" title="Descargar PGN con comentarios" style="background: #475569; color: white; border: none; display: flex; align-items: center; gap: 8px;">
-                                    <i class="fa-solid fa-download"></i> Descargar PGN
+                                <button class="btn btn-secondary" onclick="exportAnalysisPDF()" style="background: #e11d48; color: white; border: none; display: flex; align-items: center; gap: 8px;">
+                                    <i class="fa-solid fa-file-pdf"></i> Reporte PDF
+                                </button>
+                                <button class="btn btn-secondary" onclick="downloadPGN()" title="Descargar PGN" style="background: #475569; color: white; border: none; display: flex; align-items: center; gap: 8px;">
+                                    <i class="fa-solid fa-download"></i> PGN
                                 </button>
                             </div>
                         </div>

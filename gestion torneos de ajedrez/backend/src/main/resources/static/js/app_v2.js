@@ -1555,46 +1555,110 @@ window.moveAnalysis = function(dir) {
     updateAnalysisUI();
 };
 
+window.exportAnalysisPDF = function() {
+    if (currentHistory.length === 0) {
+        alert("No hay jugadas para analizar.");
+        return;
+    }
+
+    try {
+        const { jsPDF } = window.jspdf;
+        if (!jsPDF) { alert("Error: Librería jsPDF no cargada"); return; }
+        const doc = new jsPDF();
+        const now = new Date();
+
+        // Estilos
+        const primaryColor = [139, 90, 43]; // Marrón ajedrez
+        const darkColor = [45, 44, 42];
+
+        // TÍTULO
+        doc.setFontSize(22);
+        doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
+        doc.text("REPORTE DE ANÁLISIS TÁCTICO", 105, 20, { align: "center" });
+
+        doc.setFontSize(10);
+        doc.setTextColor(100, 100, 100);
+        doc.text(`Generado el: ${now.toLocaleDateString()} ${now.toLocaleTimeString()}`, 105, 28, { align: "center" });
+
+        // INFORMACIÓN DE LA PARTIDA
+        doc.setDrawColor(primaryColor[0], primaryColor[1], primaryColor[2]);
+        doc.setLineWidth(0.5);
+        doc.line(20, 35, 190, 35);
+
+        doc.setFontSize(14);
+        doc.setTextColor(darkColor[0], darkColor[1], darkColor[2]);
+        const opening = document.getElementById('opening-name')?.textContent || 'Apertura Desconocida';
+        doc.text(`Apertura: ${opening}`, 20, 45);
+
+        const accuracy = document.getElementById('accuracy-percent')?.textContent || '0%';
+        doc.text(`Precisión Estimada: ${accuracy}`, 20, 55);
+
+        // TABLA DE MOVIMIENTOS
+        const movesData = [];
+        for (let i = 0; i < currentHistory.length; i += 2) {
+            const moveNum = Math.floor(i / 2) + 1;
+            const wMove = currentHistory[i];
+            const bMove = currentHistory[i + 1] || "---";
+            
+            const wEval = moveEvaluations[i];
+            const bEval = moveEvaluations[i + 1];
+
+            const getEvalStr = (ev) => {
+                if (!ev) return "";
+                const sym = { 'brilliant': '!!', 'best': '!', 'excellent': '!', 'inaccuracy': '?!', 'mistake': '?', 'blunder': '??' }[ev.icon] || "";
+                return `${sym} (${ev.diff > 0 ? '+' : ''}${ev.diff.toFixed(2)})`;
+            };
+
+            movesData.push([
+                moveNum,
+                `${wMove} ${getEvalStr(wEval)}`,
+                `${bMove} ${getEvalStr(bEval)}`
+            ]);
+        }
+
+        doc.autoTable({
+            startY: 65,
+            head: [['#', 'Blancas', 'Negras']],
+            body: movesData,
+            headStyles: { fillColor: primaryColor, textColor: 255 },
+            alternateRowStyles: { fillColor: [245, 245, 240] },
+            styles: { fontSize: 9, cellPadding: 3 }
+        });
+
+        // PGN RAW DATA (AL FINAL)
+        let finalY = doc.lastAutoTable.finalY + 15;
+        if (finalY > 250) { doc.addPage(); finalY = 20; }
+
+        doc.setFontSize(12);
+        doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
+        doc.text("Notación PGN Completa", 20, finalY);
+
+        doc.setFontSize(8);
+        doc.setTextColor(80, 80, 80);
+        const pgnText = doc.splitTextToSize(analysisGame.pgn(), 170);
+        doc.text(pgnText, 20, finalY + 10);
+
+        doc.save(`Analisis_Partida_${now.getTime()}.pdf`);
+
+    } catch (err) {
+        console.error("Error al generar PDF:", err);
+        alert("No se pudo generar el reporte PDF: " + err.message);
+    }
+};
+
 window.downloadPGN = function() {
     if (currentHistory.length === 0) {
         alert("No hay jugadas para exportar.");
         return;
     }
 
-    let pgn = "";
-    // PGN Headers
+    let pgn = analysisGame.pgn();
     const now = new Date();
-    pgn += `[Event "Análisis Digital Curator"]\n`;
-    pgn += `[Site "Localhost"]\n`;
-    pgn += `[Date "${now.getFullYear()}.${String(now.getMonth() + 1).padStart(2, '0')}.${String(now.getDate()).padStart(2, '0')}"]\n`;
-    pgn += `[Round "1"]\n`;
-    pgn += `[White "Análisis"]\n`;
-    pgn += `[Black "Motor Stockfish"]\n`;
-    pgn += `[Result "*"]\n\n`;
-
-    for (let i = 0; i < currentHistory.length; i += 2) {
-        const roundNum = Math.floor(i / 2) + 1;
-        const wMove = currentHistory[i];
-        const bMove = currentHistory[i + 1] || "";
-        
-        const wEval = moveEvaluations[i];
-        const bEval = moveEvaluations[i + 1];
-
-        // Map icons to PGN NAGs or comments
-        const getComment = (ev) => {
-            if (!ev) return "";
-            const sym = { 'brilliant': '!!', 'best': '!', 'excellent': '!', 'inaccuracy': '?!', 'mistake': '?', 'blunder': '??' }[ev.icon] || "";
-            return ` { ${sym} Eval: ${ev.diff > 0 ? '+' : ''}${ev.diff.toFixed(2)} }`;
-        };
-
-        pgn += `${roundNum}. ${wMove}${getComment(wEval)} ${bMove}${getComment(bEval)} `;
-    }
-
     const blob = new Blob([pgn], { type: 'text/plain' });
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `Partida_Analizada_${now.getTime()}.pgn`;
+    a.download = `Partida_${now.getTime()}.pgn`;
     document.body.appendChild(a);
     a.click();
     window.URL.revokeObjectURL(url);
