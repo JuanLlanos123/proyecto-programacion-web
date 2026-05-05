@@ -550,33 +550,40 @@ function initModals() {
     });
 }
 
+window.toggleAuthMode = function() {
+    const login = document.getElementById('form-login');
+    const register = document.getElementById('form-register');
+    const btn = document.getElementById('toggle-auth-mode');
+    
+    if (!login || !register || !btn) {
+        console.error('Toggle elements not found');
+        return;
+    }
+
+    const isLoginHidden = login.style.display === 'none';
+    
+    if (isLoginHidden) {
+        // Show login
+        login.style.display = 'block';
+        register.style.display = 'none';
+        btn.innerHTML = '¿No tienes cuenta? <b>Regístrate</b>';
+    } else {
+        // Show register
+        login.style.display = 'none';
+        register.style.display = 'block';
+        btn.innerHTML = '¿Ya tienes cuenta? <b>Inicia sesión</b>';
+    }
+};
+
 function initForms() {
     console.log('initForms() ejecutado');
     const errorDiv = document.getElementById('login-error');
-    const toggleLink = document.getElementById('toggle-auth-mode');
     const formLogin = document.getElementById('form-login');
     const formRegister = document.getElementById('form-register');
     const formAddPlayer = document.getElementById('form-add-player');
     const formCreatePlayer = document.getElementById('form-create-player');
     
-    if(toggleLink) {
-        toggleLink.onclick = function(e) {
-            e.preventDefault();
-            errorDiv.style.display = 'none';
-            
-            // Si el login está oculto, mostramos el login
-            if (formLogin.style.display === 'none') {
-                formLogin.style.display = 'block';
-                formRegister.style.display = 'none';
-                toggleLink.innerHTML = '¿No tienes cuenta? <b>Regístrate</b>';
-            } else {
-                // Si el login está visible, mostramos el registro
-                formLogin.style.display = 'none';
-                formRegister.style.display = 'block';
-                toggleLink.innerHTML = '¿Ya tienes cuenta? <b>Inicia sesión</b>';
-            }
-        };
-    }
+    // El toggle ya se maneja vía onclick global
 
     if (formLogin) {
         formLogin.addEventListener('submit', async (e) => {
