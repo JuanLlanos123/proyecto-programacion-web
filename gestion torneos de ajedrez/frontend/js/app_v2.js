@@ -1740,7 +1740,7 @@ window.runFullAnalysis = async function() {
     const tempGame = new Chess();
     let prevEval = 0.2; // starting advantage roughly
     
-    const bestMoveSpan = document.getElementById('best-move');
+    // bestMoveSpan ya está declarado arriba
     
     for (let i = 0; i < currentHistory.length; i++) {
         const progress = Math.round(((i + 1) / currentHistory.length) * 100);
