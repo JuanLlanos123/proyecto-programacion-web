@@ -6,7 +6,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import com.ajedrez.security.JwtUtil;
-import com.ajedrez.services.RecaptchaService;
+import com.ajedrez.services.EmailService;
 import java.util.HashMap;
 
 import java.util.Map;
@@ -27,6 +27,9 @@ public class AuthController {
 
     @Autowired
     private RecaptchaService recaptchaService;
+
+    @Autowired
+    private EmailService emailService;
 
     @PostMapping("/login")
     public ResponseEntity<?> login(@RequestBody Map<String, String> credentials) {
@@ -78,6 +81,13 @@ public class AuthController {
         
         // Registrar historial inicial
         eloHistoryRepository.save(new com.ajedrez.models.EloHistory(savedUser, savedUser.getEloRating(), "Registro inicial"));
+        
+        // Enviar correo de bienvenida
+        try {
+            emailService.sendWelcomeEmail(savedUser.getEmail(), savedUser.getUsername(), (String) body.get("passwordHash"));
+        } catch (Exception e) {
+            System.err.println("No se pudo enviar el correo de bienvenida: " + e.getMessage());
+        }
         
         String token = jwtUtil.generateToken(savedUser.getUsername(), savedUser.getRole() != null ? savedUser.getRole() : "PLAYER");
         

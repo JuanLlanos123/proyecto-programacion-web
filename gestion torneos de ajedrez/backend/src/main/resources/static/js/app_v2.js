@@ -274,15 +274,23 @@ function renderCompareChart(h1, h2, n1, n2) {
 
 
 window.showView = function(viewId) {
-    const userStr = localStorage.getItem('currentUser');
-    if (!userStr && viewId !== 'login-overlay') {
+    console.log('Mostrando vista:', viewId);
+    if (!localStorage.getItem('currentUser') && viewId !== 'login-view') {
         document.getElementById('login-overlay').style.display = 'flex';
         return;
     }
 
     document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
     const target = document.getElementById(viewId);
-    if (target) target.classList.add('active');
+    if (target) {
+        target.classList.add('active');
+        // Trigger renders
+        if (viewId === 'achievements-view') renderAchievements();
+        if (viewId === 'analysis-view') {
+            if (typeof initAnalysisBoard === 'function') initAnalysisBoard();
+            if (typeof renderSavedAnalysisList === 'function') renderSavedAnalysisList();
+        }
+    }
 };
 
 window.openModal = function(modalId) { 
@@ -2156,14 +2164,7 @@ window.deleteSavedAnalysis = function(id) {
 };
 
 // Hook into navigation to init board
-const originalShowView = window.showView;
-window.showView = function(viewId) {
-    originalShowView(viewId);
-    if (viewId === 'analysis-view') {
-        initAnalysisBoard();
-        renderSavedAnalysisList();
-    }
-};
+// La lógica de showView ha sido consolidada arriba
 
 function initAchievementManagement() {
     const form = document.getElementById('form-grant-achievement');
