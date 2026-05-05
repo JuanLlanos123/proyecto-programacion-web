@@ -622,8 +622,17 @@ function initForms() {
             const res = await API.register(user, pass, email, 'ADMIN', elo, recaptchaToken); 
             if (typeof grecaptcha !== 'undefined') grecaptcha.reset(1);
             if (res) { 
-                alert("¡Cuenta creada con éxito! Ahora puedes iniciar sesión."); 
-                toggleAuthMode(); 
+                alert("¡Cuenta creada con éxito! Iniciando sesión..."); 
+                const loginRes = await API.login(user, pass, recaptchaToken);
+                if (loginRes && loginRes.token) {
+                    localStorage.setItem('jwt_token', loginRes.token);
+                    localStorage.setItem('currentUser', JSON.stringify(loginRes.usuario));
+                    checkAuthStatus(); 
+                    connectWebSocket(); 
+                    renderDashboard();
+                } else {
+                    toggleAuthMode(); // Fallback a login manual si falla el auto-login
+                }
             }
         });
     }
