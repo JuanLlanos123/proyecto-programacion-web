@@ -14,6 +14,7 @@
     <link rel="stylesheet" href="css/styles.css">
     <!-- Google reCAPTCHA v2 -->
     <script src="https://www.google.com/recaptcha/api.js" async defer></script>
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
     <!-- WebSockets -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/sockjs-client/1.6.1/sockjs.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/stomp.js/2.3.3/stomp.min.js"></script>
@@ -231,12 +232,22 @@
                     </div>
                 </div>
 
-                <div class="mt-4">
-                    <h3>Próximos Torneos</h3>
-                    <div id="recent-tournaments-list" class="mt-2"
-                        style="display:grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 1.5rem;">
-                        <!-- Populated via JS -->
                     </div>
+                </div>
+
+                <!-- PUZZLE OF THE DAY -->
+                <div class="card mt-4" style="padding: 25px; background: var(--surface-card); border: 1px solid var(--accent-light);">
+                    <h3 style="margin-bottom: 15px; display: flex; align-items: center; gap: 10px;">
+                        <i class="fa-solid fa-puzzle-piece" style="color: var(--accent-color);"></i> Acertijo Táctico del Día
+                    </h3>
+                    <div style="width: 100%; height: 500px; border-radius: 12px; overflow: hidden; border: 2px solid var(--surface-color); box-shadow: 0 8px 24px rgba(0,0,0,0.12);">
+                        <iframe src="https://lichess.org/training/frame?theme=brown&bg=dark" 
+                            style="width: 100%; height: 100%; border: none;" 
+                            allowtransparency="true"></iframe>
+                    </div>
+                    <p style="font-size: 0.8rem; color: var(--text-muted); margin-top: 15px; text-align: center; font-style: italic;">
+                        Desafía tu mente con el problema diario de la comunidad internacional de ajedrez.
+                    </p>
                 </div>
             </section>
 
@@ -534,8 +545,32 @@
                         <!-- ELO Comparison Chart -->
                         <div class="card" style="padding: 20px; background: var(--surface-card); border: 1px solid var(--accent-light);">
                             <h3 style="margin-top: 0;">Comparación de ELO</h3>
-                            <div style="height: 400px; position: relative;">
+                            <div style="height: 300px; position: relative;">
                                 <canvas id="compareEloChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- STYLE ANALYSIS SECTION -->
+                    <div class="card mt-4" style="padding: 25px; background: var(--surface-card); border: 1px solid var(--accent-light);">
+                        <h3 style="margin-top: 0; text-align: center;">Comparador de Estilo Táctico</h3>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 40px; align-items: center; margin-top: 20px;">
+                            <div style="height: 350px;">
+                                <canvas id="styleRadarChart"></canvas>
+                            </div>
+                            <div id="style-insights" style="display: flex; flex-direction: column; gap: 15px;">
+                                <div style="background: rgba(139, 90, 43, 0.05); padding: 15px; border-radius: 12px; border-left: 4px solid var(--accent-color);">
+                                    <h4 style="margin: 0; color: var(--accent-color); font-size: 0.9rem;">ANÁLISIS DE SÓLIDEZ</h4>
+                                    <p id="solidness-text" style="font-size: 0.85rem; margin: 5px 0 0 0; color: var(--text-main);">Comparando consistencia táctica...</p>
+                                </div>
+                                <div style="background: rgba(139, 90, 43, 0.05); padding: 15px; border-radius: 12px; border-left: 4px solid #16a34a;">
+                                    <h4 style="margin: 0; color: #16a34a; font-size: 0.9rem;">PELIGROSIDAD (AGRESIVIDAD)</h4>
+                                    <p id="aggression-text" style="font-size: 0.85rem; margin: 5px 0 0 0; color: var(--text-main);">Calculando iniciativa en apertura...</p>
+                                </div>
+                                <div style="background: rgba(139, 90, 43, 0.05); padding: 15px; border-radius: 12px; border-left: 4px solid #8b5a2b;">
+                                    <h4 style="margin: 0; color: #8b5a2b; font-size: 0.9rem;">ESTADO DE FORMA</h4>
+                                    <p id="form-text" style="font-size: 0.85rem; margin: 5px 0 0 0; color: var(--text-main);">Evaluando partidas recientes...</p>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -558,8 +593,17 @@
                                 <button class="btn btn-secondary" onclick="moveAnalysis(1)" title="Avanzar"><i class="fa-solid fa-chevron-right"></i></button>
                                 <button class="btn btn-secondary" onclick="resetAnalysisBoard()" title="Reiniciar Tablero"><i class="fa-solid fa-rotate-right"></i></button>
                                 <button class="btn btn-secondary" onclick="exportAnalysisPDF()" title="Exportar PDF"><i class="fa-solid fa-file-pdf"></i></button>
+                                <button class="btn btn-primary" onclick="runFullAnalysis()" style="background: #20b2aa; border:none; display:flex; align-items:center; gap:8px;" title="Evaluar toda la partida">
+                                    <i class="fa-solid fa-microscope"></i> Análisis Completo
+                                </button>
+                                <button class="btn btn-primary" onclick="saveAnalysis()" style="background: #16a34a; border:none; display:flex; align-items:center; gap:8px;" title="Guardar análisis actual">
+                                    <i class="fa-solid fa-floppy-disk"></i> Guardar
+                                </button>
                                 <button class="btn btn-primary" onclick="startAnalysis()" style="background: var(--accent-color); border:none; display:flex; align-items:center; gap:8px;">
                                     <i class="fa-solid fa-play"></i> Iniciar Análisis
+                                </button>
+                                <button class="btn btn-secondary" onclick="downloadPGN()" title="Descargar PGN con comentarios" style="background: #475569; color: white; border: none; display: flex; align-items: center; gap: 8px;">
+                                    <i class="fa-solid fa-download"></i> Descargar PGN
                                 </button>
                             </div>
                         </div>
@@ -573,6 +617,15 @@
                                 <button class="btn btn-secondary mt-2" style="width: 100%; display:flex; align-items:center; justify-content:center; gap:8px;" onclick="loadPGN()">
                                     <i class="fa-solid fa-file-import"></i> Cargar Partida
                                 </button>
+                            </div>
+
+                            <!-- OPENING EXPLORER CARD -->
+                            <div id="opening-explorer" style="padding: 15px; background: var(--surface-color); border-radius: 12px; border: 1px solid var(--accent-light); margin-top: 5px;">
+                                <div style="font-size: 0.75rem; text-transform: uppercase; font-weight: 700; color: var(--text-muted); margin-bottom: 4px;">Apertura Detectada</div>
+                                <div id="opening-name" style="font-size: 1.1rem; color: var(--accent-color); font-weight: 800; margin-bottom: 10px;">Buscando apertura...</div>
+                                <div id="opening-candidates" style="display: flex; flex-direction: column; gap: 5px;">
+                                    <!-- Candidate moves will appear here -->
+                                </div>
                             </div>
 
                             <div id="analysis-results" style="padding: 15px; background: var(--surface-color); border-radius: 12px; border: 1px solid var(--accent-light);">
@@ -593,7 +646,68 @@
                                         <!-- Moves will appear here -->
                                     </div>
                                 </div>
+
+                                <!-- ACCURACY SUMMARY CARD (Hidden by default) -->
+                                <div id="accuracy-summary" style="display:none; margin-top: 15px; padding: 15px; background: linear-gradient(135deg, #1e293b 0%, #334155 100%); border-radius: 12px; color: white; box-shadow: 0 4px 15px rgba(0,0,0,0.2);">
+                                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                                        <div style="font-weight: 800; font-size: 1.1rem; letter-spacing: 1px;">REPORTE DE PRECISIÓN</div>
+                                        <div id="accuracy-percent" style="font-size: 1.5rem; font-weight: 900; color: #81b64c;">0%</div>
+                                    </div>
+                                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; font-size: 0.85rem;">
+                                        <div style="display: flex; align-items: center; gap: 8px;"><img src="img/brilliant.svg" style="height:12px;"> Brillantes: <span id="stat-brilliant" style="font-weight:700;">0</span></div>
+                                        <div style="display: flex; align-items: center; gap: 8px;"><img src="img/best.svg" style="height:12px;"> Mejores: <span id="stat-best" style="font-weight:700;">0</span></div>
+                                        <div style="display: flex; align-items: center; gap: 8px;"><img src="img/excellent.svg" style="height:12px;"> Excelentes: <span id="stat-excellent" style="font-weight:700;">0</span></div>
+                                        <div style="display: flex; align-items: center; gap: 8px;"><img src="img/good.svg" style="height:12px;"> Buenas: <span id="stat-good" style="font-weight:700;">0</span></div>
+                                        <div style="display: flex; align-items: center; gap: 8px;"><img src="img/inaccuracy.svg" style="height:12px;"> Imprecisiones: <span id="stat-inaccuracy" style="font-weight:700; color:#f4ce42;">0</span></div>
+                                        <div style="display: flex; align-items: center; gap: 8px;"><img src="img/mistake.svg" style="height:12px;"> Errores: <span id="stat-mistake" style="font-weight:700; color:#eba042;">0</span></div>
+                                        <div style="display: flex; align-items: center; gap: 8px;"><img src="img/blunder.svg" style="height:12px;"> Errores Graves: <span id="stat-blunder" style="font-weight:700; color:#d35540;">0</span></div>
+                                    </div>
+
+                                    <!-- PHASE ANALYSIS (HEATMAP) -->
+                                    <div style="margin-top: 15px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 15px;">
+                                        <div style="font-size: 0.75rem; font-weight: 700; color: rgba(255,255,255,0.6); margin-bottom: 10px; text-transform: uppercase;">Análisis por Fase de Partida</div>
+                                        <div style="display: flex; gap: 5px; height: 30px; border-radius: 6px; overflow: hidden; background: rgba(0,0,0,0.2);">
+                                            <div id="phase-opening" style="flex: 1; display: flex; align-items: center; justify-content: center; font-size: 0.7rem; font-weight: 800; transition: background 0.5s;">APERTURA</div>
+                                            <div id="phase-middle" style="flex: 2; display: flex; align-items: center; justify-content: center; font-size: 0.7rem; font-weight: 800; border-left: 1px solid rgba(255,255,255,0.1); transition: background 0.5s;">MEDIO JUEGO</div>
+                                            <div id="phase-endgame" style="flex: 1.5; display: flex; align-items: center; justify-content: center; font-size: 0.7rem; font-weight: 800; border-left: 1px solid rgba(255,255,255,0.1); transition: background 0.5s;">FINAL</div>
+                                        </div>
+                                        <div style="display: flex; justify-content: space-between; margin-top: 5px; font-size: 0.65rem; color: rgba(255,255,255,0.5);">
+                                            <span>Mover 1-10</span>
+                                            <span>Mover 11-30</span>
+                                            <span>Mover 31+</span>
+                                        </div>
+                                    </div>
+
+                                    <!-- BEST MOMENTS REEL -->
+                                    <div id="best-moments-reel" style="display:none; margin-top: 15px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 15px;">
+                                        <div style="font-size: 0.75rem; font-weight: 700; color: #fbbf24; margin-bottom: 10px; text-transform: uppercase; display: flex; align-items: center; gap: 5px;">
+                                            <i class="fa-solid fa-star"></i> Jugadas Destacadas
+                                        </div>
+                                        <div id="best-moments-list" style="display: flex; gap: 10px; overflow-x: auto; padding-bottom: 5px; scrollbar-width: thin;">
+                                            <!-- Items will be injected here -->
+                                        </div>
+                                    </div>
+
+                                    <div style="margin-top: 15px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 10px; text-align: center;">
+                                        <div style="font-size: 0.75rem; opacity: 0.8; margin-bottom: 4px;">DESEMPEÑO ESTIMADO</div>
+                                        <div id="performance-elo" style="font-size: 1.2rem; font-weight: 800; color: #fbbf24;">1200 ELO</div>
+                                    </div>
+                                </div>
                             </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- SAVED ANALYSES SECTION -->
+                <div class="card mt-4" style="padding: 25px; background: var(--surface-card); border: 1px solid var(--accent-light);">
+                    <h3 style="margin-bottom: 20px; display: flex; align-items: center; gap: 10px;">
+                        <i class="fa-solid fa-clock-history" style="color: var(--accent-color);"></i> Historial de Partidas Guardadas
+                    </h3>
+                    <div id="saved-analyses-list" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 1.5rem;">
+                        <!-- Saved games will appear here -->
+                        <div style="grid-column: 1/-1; text-align: center; padding: 2rem; color: var(--text-muted);">
+                            <i class="fa-solid fa-folder-open" style="font-size: 2rem; display: block; margin-bottom: 10px; opacity: 0.3;"></i>
+                            Aún no has guardado ninguna partida.
                         </div>
                     </div>
                 </div>

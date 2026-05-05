@@ -140,7 +140,83 @@ window.runComparison = async function() {
     `).join('');
 
     renderCompareChart(data.history1, data.history2, data.user1.username, data.user2.username);
+    renderStyleRadar(data.user1, data.user2, data.matches);
 };
+
+let styleRadarInstance = null;
+function renderStyleRadar(u1, u2, matches) {
+    const canvas = document.getElementById('styleRadarChart');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (styleRadarInstance) styleRadarInstance.destroy();
+
+    const getStats = (user, matches) => {
+        const uMatches = matches.filter(m => (m.blancas && m.blancas.id === user.id) || (m.negras && m.negras.id === user.id));
+        const total = uMatches.length || 1;
+        const wins = uMatches.filter(m => (m.blancas?.id === user.id && m.resultado === '1-0') || (m.negras?.id === user.id && m.resultado === '0-1')).length;
+        const draws = uMatches.filter(m => m.resultado === '0.5-0.5').length;
+        
+        // Solidness: 0 to 100
+        const solidness = Math.min(100, (draws / total * 200) + 40); 
+        // Aggression: Win rate as white
+        const whiteWins = uMatches.filter(m => m.blancas?.id === user.id && m.resultado === '1-0').length;
+        const aggression = Math.min(100, (whiteWins / Math.max(uMatches.filter(m => m.blancas?.id === user.id).length, 1) * 100) + 20);
+        // Precision: Based on ELO
+        const precision = Math.min(95, (user.eloRating / 30) + 20);
+        // Form: Wins in last 5 matches
+        const last5 = uMatches.slice(-5);
+        const form = (last5.filter(m => (m.blancas?.id === user.id && m.resultado === '1-0') || (m.negras?.id === user.id && m.resultado === '0-1')).length / 5) * 100;
+        // Experience
+        const experience = Math.min(100, total * 5);
+
+        return [solidness, aggression, precision, form, experience];
+    };
+
+    const s1 = getStats(u1, matches);
+    const s2 = getStats(u2, matches);
+
+    // Update Text Insights
+    const solidText = s1[0] > s2[0] ? `${u1.username} es más sólido defensivamente.` : `${u2.username} tiene una defensa más férrea.`;
+    const aggrText = s1[1] > s2[1] ? `${u1.username} busca más la iniciativa desde la apertura.` : `${u2.username} es más agresivo con piezas blancas.`;
+    const formText = s1[3] > s2[3] ? `${u1.username} llega en mejor racha ganadora.` : `${u2.username} está en mejor forma competitiva.`;
+    
+    document.getElementById('solidness-text').textContent = solidText;
+    document.getElementById('aggression-text').textContent = aggrText;
+    document.getElementById('form-text').textContent = formText;
+
+    styleRadarInstance = new Chart(ctx, {
+        type: 'radar',
+        data: {
+            labels: ['Solidez', 'Agresividad', 'Precisión', 'Forma', 'Experiencia'],
+            datasets: [
+                {
+                    label: u1.username,
+                    data: s1,
+                    backgroundColor: 'rgba(139, 90, 43, 0.2)',
+                    borderColor: '#8b5a2b',
+                    pointBackgroundColor: '#8b5a2b'
+                },
+                {
+                    label: u2.username,
+                    data: s2,
+                    backgroundColor: 'rgba(22, 163, 74, 0.2)',
+                    borderColor: '#16a34a',
+                    pointBackgroundColor: '#16a34a'
+                }
+            ]
+        },
+        options: {
+            scales: {
+                r: {
+                    beginAtZero: true,
+                    max: 100,
+                    ticks: { display: false }
+                }
+            },
+            plugins: { legend: { position: 'top' } }
+        }
+    });
+}
 
 function renderCompareChart(h1, h2, n1, n2) {
     const canvas = document.getElementById('compareEloChart');
@@ -502,8 +578,10 @@ function initForms() {
             if (res && res.token) {
                 localStorage.setItem('jwt_token', res.token);
                 localStorage.setItem('currentUser', JSON.stringify(res.usuario));
+                if (typeof grecaptcha !== 'undefined') grecaptcha.reset(0);
                 checkAuthStatus(); connectWebSocket(); renderDashboard();
             } else {
+                if (typeof grecaptcha !== 'undefined') grecaptcha.reset(0);
                 errorDiv.textContent = 'Error de login'; errorDiv.style.display = 'block';
             }
         });
@@ -519,6 +597,7 @@ function initForms() {
             const recaptchaToken = grecaptcha.getResponse(1);
             if(!recaptchaToken) { alert('Marca el reCAPTCHA'); return; }
             const res = await API.register(user, pass, email, 'ADMIN', elo, recaptchaToken); 
+            if (typeof grecaptcha !== 'undefined') grecaptcha.reset(1);
             if (res) { alert("Cuenta creada."); toggleLink.click(); }
         });
     }
@@ -572,6 +651,8 @@ function initForms() {
                 const targetId = window.currentTournamentId || currentTournamentId;
                 console.log('Llamando a API.inscribirJugador con ID:', targetId);
                 const res = await API.inscribirJugador(targetId, data);
+                if (typeof grecaptcha !== 'undefined' && mode !== 'existente') grecaptcha.reset(2);
+                
                 if (res && (res.id || res.success)) { 
                     alert("¡Jugador inscrito con éxito!");
                     closeModal('add-player-modal'); 
@@ -628,6 +709,8 @@ function initForms() {
                 }
                 
                 const res = await API.register(username, password, email, 'PLAYER', elo, recaptchaToken);
+                if (typeof grecaptcha !== 'undefined') grecaptcha.reset(3);
+
                 if (res) {
                     alert('¡Jugador "' + username + '" creado con éxito!');
                     closeModal('create-player-modal');
@@ -1316,6 +1399,8 @@ let analysisGame = new Chess();
 let stockfishWorker = null;
 let currentHistory = [];
 let currentMoveIndex = -1;
+let moveEvaluations = [];
+let isAnalyzingFullGame = false;
 
 window.initAnalysisBoard = function() {
     if (analysisBoard) return;
@@ -1332,6 +1417,7 @@ window.initAnalysisBoard = function() {
             
             currentHistory = analysisGame.history();
             currentMoveIndex = currentHistory.length - 1;
+            moveEvaluations = new Array(currentHistory.length).fill(null);
             updateAnalysisUI();
         }
     });
@@ -1343,6 +1429,17 @@ window.resetAnalysisBoard = function() {
     analysisBoard.position('start');
     currentHistory = [];
     currentMoveIndex = -1;
+    moveEvaluations = [];
+    lastExplorerFen = "";
+    const nameEl = document.getElementById('opening-name');
+    const candEl = document.getElementById('opening-candidates');
+    if (nameEl) nameEl.textContent = "Buscando apertura...";
+    if (candEl) candEl.innerHTML = "";
+    
+    const summary = document.getElementById('accuracy-summary');
+    if (summary) summary.style.display = 'none';
+    const reel = document.getElementById('best-moments-reel');
+    if (reel) reel.style.display = 'none';
     updateAnalysisUI();
 };
 
@@ -1402,6 +1499,7 @@ window.loadPGN = function() {
     if (analysisGame.load_pgn(pgn)) {
         currentHistory = analysisGame.history();
         currentMoveIndex = currentHistory.length - 1;
+        moveEvaluations = new Array(currentHistory.length).fill(null);
         analysisBoard.position(analysisGame.fen());
         updateAnalysisUI();
     } else {
@@ -1427,6 +1525,52 @@ window.moveAnalysis = function(dir) {
     updateAnalysisUI();
 };
 
+window.downloadPGN = function() {
+    if (currentHistory.length === 0) {
+        alert("No hay jugadas para exportar.");
+        return;
+    }
+
+    let pgn = "";
+    // PGN Headers
+    const now = new Date();
+    pgn += `[Event "Análisis Digital Curator"]\n`;
+    pgn += `[Site "Localhost"]\n`;
+    pgn += `[Date "${now.getFullYear()}.${String(now.getMonth() + 1).padStart(2, '0')}.${String(now.getDate()).padStart(2, '0')}"]\n`;
+    pgn += `[Round "1"]\n`;
+    pgn += `[White "Análisis"]\n`;
+    pgn += `[Black "Motor Stockfish"]\n`;
+    pgn += `[Result "*"]\n\n`;
+
+    for (let i = 0; i < currentHistory.length; i += 2) {
+        const roundNum = Math.floor(i / 2) + 1;
+        const wMove = currentHistory[i];
+        const bMove = currentHistory[i + 1] || "";
+        
+        const wEval = moveEvaluations[i];
+        const bEval = moveEvaluations[i + 1];
+
+        // Map icons to PGN NAGs or comments
+        const getComment = (ev) => {
+            if (!ev) return "";
+            const sym = { 'brilliant': '!!', 'best': '!', 'excellent': '!', 'inaccuracy': '?!', 'mistake': '?', 'blunder': '??' }[ev.icon] || "";
+            return ` { ${sym} Eval: ${ev.diff > 0 ? '+' : ''}${ev.diff.toFixed(2)} }`;
+        };
+
+        pgn += `${roundNum}. ${wMove}${getComment(wEval)} ${bMove}${getComment(bEval)} `;
+    }
+
+    const blob = new Blob([pgn], { type: 'text/plain' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `Partida_Analizada_${now.getTime()}.pgn`;
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(url);
+    document.body.removeChild(a);
+};
+
 function updateAnalysisUI() {
     document.getElementById('best-move').textContent = 'Análisis listo...';
     
@@ -1448,15 +1592,23 @@ function updateAnalysisUI() {
             const whiteMove = currentHistory[i];
             const blackMove = currentHistory[i + 1] || '';
             
+            const wEval = moveEvaluations[i];
+            const bEval = moveEvaluations[i + 1];
+            
+            const wIcon = wEval && wEval.icon ? `<img src="img/${wEval.icon}.svg" style="height:14px; vertical-align:middle; margin-left:4px;" title="${wEval.icon} (${wEval.diff > 0 ? '+' : ''}${wEval.diff.toFixed(2)})">` : '';
+            const bIcon = bEval && bEval.icon ? `<img src="img/${bEval.icon}.svg" style="height:14px; vertical-align:middle; margin-left:4px;" title="${bEval.icon} (${bEval.diff > 0 ? '+' : ''}${bEval.diff.toFixed(2)})">` : '';
+            
             const moveRow = `
                 <div style="color: var(--text-muted); font-weight: bold;">${roundNum}.</div>
-                <div style="padding: 2px 5px; background: ${i === currentMoveIndex ? highlight : 'transparent'}; border-radius: 4px; color: var(--text-main);">${whiteMove}</div>
-                <div style="padding: 2px 5px; background: ${i + 1 === currentMoveIndex ? highlight : 'transparent'}; border-radius: 4px; color: var(--text-main);">${blackMove}</div>
+                <div style="padding: 2px 5px; background: ${i === currentMoveIndex ? highlight : 'transparent'}; border-radius: 4px; color: var(--text-main); cursor:pointer;" onclick="moveAnalysisAbsolute(${i})">${whiteMove}${wIcon}</div>
+                <div style="padding: 2px 5px; background: ${i + 1 === currentMoveIndex ? highlight : 'transparent'}; border-radius: 4px; color: var(--text-main); cursor:pointer;" onclick="moveAnalysisAbsolute(${i+1})">${blackMove}${bIcon}</div>
             `;
             moveList.innerHTML += moveRow;
         }
         moveList.scrollTop = moveList.scrollHeight;
     }
+
+    updateOpeningExplorer(analysisGame.fen());
 }
 
 window.startAnalysis = function() {
@@ -1486,6 +1638,126 @@ window.startAnalysis = function() {
     stockfishWorker.postMessage('go depth 15');
 };
 
+window.moveAnalysisAbsolute = function(index) {
+    if (index < 0 || index >= currentHistory.length) return;
+    currentMoveIndex = index;
+    const tempGame = new Chess();
+    for (let i = 0; i <= currentMoveIndex; i++) {
+        tempGame.move(currentHistory[i]);
+    }
+    analysisBoard.position(tempGame.fen());
+    analysisGame = tempGame;
+    updateAnalysisUI();
+};
+
+window.runFullAnalysis = async function() {
+    if (isAnalyzingFullGame) return;
+    if (currentHistory.length === 0) {
+        alert("No hay movimientos para analizar.");
+        return;
+    }
+    
+    isAnalyzingFullGame = true;
+    moveEvaluations = new Array(currentHistory.length).fill(null);
+    updateAnalysisUI();
+    
+    if (!stockfishWorker) {
+        stockfishWorker = new Worker('js/stockfish.js');
+    }
+    
+    const analyzeFen = (fen, depth) => {
+        return new Promise(resolve => {
+            let lastCp = 0;
+            let lastMate = null;
+            const handler = function(event) {
+                const line = event.data;
+                if (line.includes('info depth') && line.includes('score')) {
+                    const cpMatch = line.match(/cp (-?\d+)/);
+                    const mateMatch = line.match(/mate (-?\d+)/);
+                    if (cpMatch) lastCp = parseInt(cpMatch[1]) / 100.0;
+                    if (mateMatch) lastMate = parseInt(mateMatch[1]);
+                } else if (line.includes('bestmove')) {
+                    stockfishWorker.removeEventListener('message', handler);
+                    // if mate, represent as a large centipawn value
+                    if (lastMate !== null) {
+                        lastCp = lastMate > 0 ? 100 - lastMate : -100 - lastMate;
+                    }
+                    resolve(lastCp);
+                }
+            };
+            stockfishWorker.addEventListener('message', handler);
+            stockfishWorker.postMessage('position fen ' + fen);
+            stockfishWorker.postMessage('go depth ' + depth);
+        });
+    };
+    
+    // Ensure we start with a clean worker state for the analysis loop
+    // Temporarily replace onmessage to avoid conflicts
+    const originalOnMessage = stockfishWorker.onmessage;
+    stockfishWorker.onmessage = null;
+    stockfishWorker.postMessage('uci');
+    stockfishWorker.postMessage('ucinewgame');
+    
+    const tempGame = new Chess();
+    let prevEval = 0.2; // starting advantage roughly
+    
+    const bestMoveSpan = document.getElementById('best-move');
+    
+    for (let i = 0; i < currentHistory.length; i++) {
+        tempGame.move(currentHistory[i]);
+        let currentEval = await analyzeFen(tempGame.fen(), 12);
+        
+        const isWhiteToMove = tempGame.turn() === 'w';
+        let normalizedEval = isWhiteToMove ? currentEval : -currentEval;
+        
+        let evalDiff;
+        if (i % 2 === 0) { // White just moved
+            evalDiff = normalizedEval - prevEval;
+        } else { // Black just moved
+            evalDiff = -(normalizedEval - prevEval);
+        }
+        
+        let category = 'book';
+        let icon = 'book';
+        
+        if (i < 4) { 
+            category = 'book'; icon = 'book';
+        } else if (evalDiff < -3.0) {
+            category = 'blunder'; icon = 'blunder';
+        } else if (evalDiff < -1.5) {
+            category = 'mistake'; icon = 'mistake';
+        } else if (evalDiff < -0.8) {
+            category = 'inaccuracy'; icon = 'inaccuracy';
+        } else if (evalDiff < -0.3) {
+            category = 'good'; icon = 'good';
+        } else if (evalDiff > 1.0 && currentEval > 2.0 && prevEval < 0.5) {
+            category = 'brilliant'; icon = 'brilliant';
+        } else if (evalDiff >= -0.3 && evalDiff <= 0.3) {
+            category = 'best'; icon = 'best';
+        } else {
+            category = 'excellent'; icon = 'excellent';
+        }
+        
+        moveEvaluations[i] = { icon: icon, diff: evalDiff };
+        prevEval = normalizedEval;
+        
+        if (bestMoveSpan) {
+            bestMoveSpan.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Analizando partida (${i+1}/${currentHistory.length})...`;
+        }
+        updateAnalysisUI(); 
+    }
+    
+    if (bestMoveSpan) {
+        bestMoveSpan.innerHTML = `<i class="fa-solid fa-check"></i> Análisis Completado`;
+    }
+    isAnalyzingFullGame = false;
+    
+    // Restore the worker
+    stockfishWorker.onmessage = originalOnMessage;
+    updateAccuracySummary();
+    startAnalysis();
+};
+
 function updateEvalBar(cp) {
     const val = document.getElementById('eval-value');
     const bar = document.getElementById('eval-bar');
@@ -1498,10 +1770,254 @@ function updateEvalBar(cp) {
     bar.style.width = percentage + '%';
 }
 
+let lastExplorerFen = "";
+async function updateOpeningExplorer(fen) {
+    const fenBase = fen.split(' ').slice(0, 4).join(' '); // Ignore halfmove/fullmove for explorer
+    if (fenBase === lastExplorerFen) return;
+    lastExplorerFen = fenBase;
+
+    const nameEl = document.getElementById('opening-name');
+    const candEl = document.getElementById('opening-candidates');
+    if (!nameEl || !candEl) return;
+
+    try {
+        const res = await fetch(`https://explorer.lichess.ovh/masters?fen=${encodeURIComponent(fen)}`);
+        const data = await res.json();
+
+        if (data.opening) {
+            nameEl.textContent = data.opening.name;
+        } else {
+            nameEl.textContent = "Teoría desconocida / Final de partida";
+        }
+
+        if (data.moves && data.moves.length > 0) {
+            candEl.innerHTML = data.moves.slice(0, 3).map(m => `
+                <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.85rem; background: rgba(139, 90, 43, 0.05); padding: 6px 10px; border-radius: 6px; border: 1px solid rgba(139, 90, 43, 0.1);">
+                    <span style="font-weight: 700; color: var(--accent-color);">${m.san}</span>
+                    <div style="display:flex; gap:8px; align-items:center;">
+                        <span style="color: #16a34a; font-weight:700;">${Math.round(m.white)}%</span>
+                        <span style="color: var(--text-muted); font-size: 0.7rem;">${Math.round(m.draws)}%</span>
+                        <span style="color: #ef4444; font-weight:700;">${Math.round(m.black)}%</span>
+                    </div>
+                </div>
+            `).join('');
+        } else {
+            candEl.innerHTML = '<div style="font-size: 0.75rem; color: var(--text-muted); font-style:italic;">No hay jugadas maestras registradas en esta posición.</div>';
+        }
+    } catch (err) {
+        console.error("Explorer Error:", err);
+        nameEl.textContent = "Error al conectar con el explorador";
+    }
+}
+
+function triggerConfetti() {
+    if (typeof confetti !== 'undefined') {
+        confetti({
+            particleCount: 150,
+            spread: 70,
+            origin: { y: 0.6 },
+            colors: ['#8b5a2b', '#fbbf24', '#16a34a']
+        });
+    }
+}
+
+function updateAccuracySummary() {
+    const counts = {
+        brilliant: 0, best: 0, excellent: 0, good: 0,
+        inaccuracy: 0, mistake: 0, blunder: 0, book: 0, excellent: 0
+    };
+    
+    let totalAccuracy = 0;
+    let movesToCount = 0;
+
+    moveEvaluations.forEach(ev => {
+        if (!ev) return;
+        counts[ev.icon] = (counts[ev.icon] || 0) + 1;
+        
+        let acc = 100;
+        if (ev.diff < 0) {
+            acc = Math.max(0, 100 + (ev.diff * 15)); 
+        }
+        totalAccuracy += acc;
+        movesToCount++;
+    });
+
+    if (movesToCount === 0) return;
+
+    const avgAccuracy = totalAccuracy / movesToCount;
+    // Heuristic: Accuracy * 30 - some offset
+    const predictedElo = Math.max(400, Math.floor(avgAccuracy * 28));
+
+    // Best Moments Logic
+    const bestMoments = [];
+    moveEvaluations.forEach((ev, idx) => {
+        if (ev && (ev.icon === 'brilliant' || ev.icon === 'best' || ev.icon === 'great_find' || ev.icon === 'excellent')) {
+            bestMoments.push({ idx, ev, san: currentHistory[idx] });
+        }
+    });
+
+    const reel = document.getElementById('best-moments-reel');
+    const reelList = document.getElementById('best-moments-list');
+    if (reel && reelList) {
+        if (bestMoments.length > 0) {
+            reel.style.display = 'block';
+            reelList.innerHTML = bestMoments.map(m => `
+                <div onclick="moveAnalysisAbsolute(${m.idx})" style="flex-shrink: 0; width: 80px; background: rgba(255,255,255,0.1); border: 1px solid ${m.ev.icon === 'brilliant' ? '#fbbf24' : 'rgba(255,255,255,0.2)'}; padding: 8px; border-radius: 8px; cursor: pointer; text-align: center; transition: transform 0.2s;">
+                    <img src="img/${m.ev.icon}.svg" style="height: 20px; margin-bottom: 4px;">
+                    <div style="font-weight: 800; font-size: 0.9rem; color: white;">${m.san}</div>
+                    <div style="font-size: 0.6rem; opacity: 0.7; text-transform: uppercase;">Mover ${Math.floor(m.idx/2)+1}</div>
+                </div>
+            `).join('');
+            
+            // Si hay jugadas brillantes o muy alta precisión, lanzamos confeti
+            if (bestMoments.some(m => m.ev.icon === 'brilliant') || avgAccuracy > 90) {
+                triggerConfetti();
+            }
+        } else {
+            reel.style.display = 'none';
+        }
+    }
+
+    // Phase Analysis (Mistakes/Blunders per phase)
+    const phases = {
+        opening: { moves: 0, bad: 0 },
+        middle: { moves: 0, bad: 0 },
+        endgame: { moves: 0, bad: 0 }
+    };
+
+    moveEvaluations.forEach((ev, idx) => {
+        if (!ev) return;
+        let phase = 'endgame';
+        if (idx < 20) phase = 'opening';
+        else if (idx < 60) phase = 'middle';
+
+        phases[phase].moves++;
+        if (ev.icon === 'mistake' || ev.icon === 'blunder' || ev.icon === 'inaccuracy') {
+            phases[phase].bad++;
+        }
+    });
+
+    const getPhaseColor = (p) => {
+        if (p.moves === 0) return 'rgba(0,0,0,0.2)';
+        const ratio = p.bad / p.moves;
+        if (ratio > 0.4) return '#ef4444'; // Red (Danger)
+        if (ratio > 0.2) return '#f59e0b'; // Orange (Warning)
+        return '#16a34a'; // Green (Safe)
+    };
+
+    const summary = document.getElementById('accuracy-summary');
+    if (summary) {
+        summary.style.display = 'block';
+        document.getElementById('accuracy-percent').textContent = avgAccuracy.toFixed(1) + '%';
+        document.getElementById('stat-brilliant').textContent = counts.brilliant || 0;
+        document.getElementById('stat-best').textContent = counts.best || 0;
+        document.getElementById('stat-excellent').textContent = counts.excellent || 0;
+        document.getElementById('stat-good').textContent = counts.good || 0;
+        document.getElementById('stat-inaccuracy').textContent = counts.inaccuracy || 0;
+        document.getElementById('stat-mistake').textContent = counts.mistake || 0;
+        document.getElementById('stat-blunder').textContent = counts.blunder || 0;
+        document.getElementById('performance-elo').textContent = predictedElo + ' ELO';
+
+        // Update Heatmap colors
+        document.getElementById('phase-opening').style.background = getPhaseColor(phases.opening);
+        document.getElementById('phase-middle').style.background = getPhaseColor(phases.middle);
+        document.getElementById('phase-endgame').style.background = getPhaseColor(phases.endgame);
+    }
+}
+
+// --- Saved Analysis Logic ---
+window.saveAnalysis = function() {
+    if (currentHistory.length === 0) {
+        alert("No hay jugadas para guardar.");
+        return;
+    }
+    const name = prompt("Nombre para este análisis:", `Análisis ${new Date().toLocaleString()}`);
+    if (!name) return;
+
+    const analysisData = {
+        id: Date.now(),
+        name: name,
+        pgn: analysisGame.pgn(),
+        fen: analysisGame.fen(),
+        evaluations: moveEvaluations,
+        timestamp: new Date().toISOString()
+    };
+
+    let saved = JSON.parse(localStorage.getItem('chess_analyses') || '[]');
+    saved.unshift(analysisData);
+    localStorage.setItem('chess_analyses', JSON.stringify(saved));
+    
+    renderSavedAnalysisList();
+    alert("Análisis guardado correctamente.");
+};
+
+window.renderSavedAnalysisList = function() {
+    const container = document.getElementById('saved-analyses-list');
+    if (!container) return;
+
+    const saved = JSON.parse(localStorage.getItem('chess_analyses') || '[]');
+    if (saved.length === 0) {
+        container.innerHTML = `
+            <div style="grid-column: 1/-1; text-align: center; padding: 2rem; color: var(--text-muted);">
+                <i class="fa-solid fa-folder-open" style="font-size: 2rem; display: block; margin-bottom: 10px; opacity: 0.3;"></i>
+                Aún no has guardado ninguna partida.
+            </div>`;
+        return;
+    }
+
+    container.innerHTML = saved.map(item => `
+        <div class="card" style="padding: 15px; border: 1px solid var(--accent-light); transition: transform 0.2s; cursor: default;">
+            <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 10px;">
+                <h4 style="margin: 0; color: var(--accent-color); font-size: 1rem;">${item.name}</h4>
+                <button class="btn" style="padding: 2px 6px; color: #ef4444; background:none;" onclick="deleteSavedAnalysis(${item.id})">
+                    <i class="fa-solid fa-trash-can"></i>
+                </button>
+            </div>
+            <p style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 10px;">${new Date(item.timestamp).toLocaleString()}</p>
+            <div style="display: flex; gap: 8px;">
+                <button class="btn btn-secondary" style="flex: 1; font-size: 0.8rem; padding: 6px;" onclick="loadSavedAnalysis(${item.id})">
+                    <i class="fa-solid fa-folder-open"></i> Cargar
+                </button>
+            </div>
+        </div>
+    `).join('');
+};
+
+window.loadSavedAnalysis = function(id) {
+    const saved = JSON.parse(localStorage.getItem('chess_analyses') || '[]');
+    const item = saved.find(x => x.id === id);
+    if (!item) return;
+
+    if (!confirm(`¿Cargar "${item.name}"? Se perderá el análisis actual.`)) return;
+
+    analysisGame = new Chess();
+    if (analysisGame.load_pgn(item.pgn)) {
+        currentHistory = analysisGame.history();
+        currentMoveIndex = currentHistory.length - 1;
+        moveEvaluations = item.evaluations || new Array(currentHistory.length).fill(null);
+        analysisBoard.position(analysisGame.fen());
+        updateAnalysisUI();
+        updateAccuracySummary();
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+};
+
+window.deleteSavedAnalysis = function(id) {
+    if (!confirm("¿Eliminar este análisis permanentemente?")) return;
+    let saved = JSON.parse(localStorage.getItem('chess_analyses') || '[]');
+    saved = saved.filter(x => x.id !== id);
+    localStorage.setItem('chess_analyses', JSON.stringify(saved));
+    renderSavedAnalysisList();
+};
+
 // Hook into navigation to init board
 const originalShowView = window.showView;
 window.showView = function(viewId) {
     originalShowView(viewId);
+    if (viewId === 'analysis-view') {
+        initAnalysisBoard();
+        renderSavedAnalysisList();
+    }
 };
 
 function initAchievementManagement() {
