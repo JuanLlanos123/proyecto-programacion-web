@@ -1683,6 +1683,11 @@ window.runFullAnalysis = async function() {
     moveEvaluations = new Array(currentHistory.length).fill(null);
     updateAnalysisUI();
     
+    const bestMoveSpan = document.getElementById('best-move');
+    if (bestMoveSpan) {
+        bestMoveSpan.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Analizando partida... <span id="analysis-progress">0</span>%';
+    }
+    
     if (!stockfishWorker) {
         stockfishWorker = new Worker('js/stockfish.js');
     }
@@ -1726,8 +1731,12 @@ window.runFullAnalysis = async function() {
     const bestMoveSpan = document.getElementById('best-move');
     
     for (let i = 0; i < currentHistory.length; i++) {
+        const progress = Math.round(((i + 1) / currentHistory.length) * 100);
+        const progEl = document.getElementById('analysis-progress');
+        if (progEl) progEl.textContent = progress;
+
         tempGame.move(currentHistory[i]);
-        let currentEval = await analyzeFen(tempGame.fen(), 12);
+        let currentEval = await analyzeFen(tempGame.fen(), 10); // Lower depth for speed but better feedback
         
         const isWhiteToMove = tempGame.turn() === 'w';
         let normalizedEval = isWhiteToMove ? currentEval : -currentEval;
@@ -1803,15 +1812,21 @@ async function updateOpeningExplorer(fen) {
     const candEl = document.getElementById('opening-candidates');
     if (!nameEl || !candEl) return;
 
+    // Use a clean FEN (no move counts) for better matching
+    const fenParts = fen.split(' ');
+    const cleanFen = fenParts.slice(0, 4).join(' ');
+
     try {
+        console.log('Fetching opening for FEN:', cleanFen);
         // Intentar primero con la base de datos de Maestros
-        let res = await fetch(`https://explorer.lichess.ovh/masters?fen=${encodeURIComponent(fen)}`);
+        let res = await fetch(`https://explorer.lichess.ovh/masters?fen=${encodeURIComponent(cleanFen)}`);
+        if (!res.ok) throw new Error('Lichess API error');
         let data = await res.json();
 
         // Si no hay datos, intentar con la base de datos general de Lichess
-        if ((!data.opening || !data.moves || data.moves.length === 0) && fen.split(' ')[4] < 50) {
-            res = await fetch(`https://explorer.lichess.ovh/lichess?fen=${encodeURIComponent(fen)}`);
-            data = await res.json();
+        if ((!data.opening || !data.moves || data.moves.length === 0) && parseInt(fenParts[5]) < 50) {
+            res = await fetch(`https://explorer.lichess.ovh/lichess?fen=${encodeURIComponent(cleanFen)}`);
+            if (res.ok) data = await res.json();
         }
 
         if (data.opening) {
