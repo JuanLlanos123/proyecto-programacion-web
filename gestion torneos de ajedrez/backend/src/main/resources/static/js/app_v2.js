@@ -563,11 +563,16 @@ function initForms() {
         toggleLink.addEventListener('click', (e) => {
             e.preventDefault();
             errorDiv.style.display = 'none';
-            if(formLogin.style.display === 'none') {
-                formLogin.style.display = 'block'; formRegister.style.display = 'none';
+            // Use getComputedStyle or check for explicit 'block' since it might be empty
+            const isLoginVisible = window.getComputedStyle(formLogin).display !== 'none';
+            
+            if(!isLoginVisible) {
+                formLogin.style.display = 'block'; 
+                formRegister.style.display = 'none';
                 toggleLink.textContent = '¿No tienes cuenta? Regístrate';
             } else {
-                formLogin.style.display = 'none'; formRegister.style.display = 'block';
+                formLogin.style.display = 'none'; 
+                formRegister.style.display = 'block';
                 toggleLink.textContent = '¿Ya tienes cuenta? Inicia sesión';
             }
         });
@@ -2104,6 +2109,22 @@ window.confirmDeleteAchievement = async function(achievementId, userId) {
 window.toggleSounds = function() {
     const enabled = document.getElementById('sound-toggle').checked;
     localStorage.setItem('chess_sounds_enabled', enabled);
+};
+
+window.togglePassword = function(inputId) {
+    const input = document.getElementById(inputId);
+    if (input) {
+        input.type = input.type === 'password' ? 'text' : 'password';
+    }
+};
+
+window.toggleSidebar = function() {
+    const sidebar = document.querySelector('.sidebar');
+    const overlay = document.getElementById('sidebar-overlay');
+    if (sidebar) {
+        sidebar.classList.toggle('active');
+        if (overlay) overlay.classList.toggle('active');
+    }
 };
 
 const chessSounds = {
