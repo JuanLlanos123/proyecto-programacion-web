@@ -7,6 +7,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import com.ajedrez.security.JwtUtil;
 import com.ajedrez.services.EmailService;
+import com.ajedrez.services.RecaptchaService;
 import java.util.HashMap;
 
 import java.util.Map;
