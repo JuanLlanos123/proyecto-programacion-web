@@ -47,6 +47,78 @@ function checkAuthStatus() {
     }
 }
 
+window.exportFide = async function(id) {
+    if(!id) return;
+    const btn = event.currentTarget;
+    const originalHtml = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Exportando...';
+    const success = await API.exportFide(id);
+    if(success) {
+        alert("Archivo TRF generado con éxito.");
+    } else {
+        alert("Error al generar el reporte FIDE.");
+    }
+    btn.disabled = false;
+    btn.innerHTML = originalHtml;
+};
+
+let html5QrScanner = null;
+
+window.startQrScanner = function() {
+    openModal('qr-scanner-modal');
+    const resultsDiv = document.getElementById('qr-reader-results');
+    resultsDiv.textContent = 'Buscando cámara...';
+    resultsDiv.style.color = 'var(--text-muted)';
+
+    html5QrScanner = new Html5Qrcode("qr-reader");
+    const config = { fps: 10, qrbox: { width: 250, height: 250 } };
+
+    html5QrScanner.start({ facingMode: "environment" }, config, async (decodedText) => {
+        // Formato esperado: "CHESS_CHECKIN:TORNEO_ID:INS_ID"
+        console.log("QR Scaneado:", decodedText);
+        if (decodedText.startsWith("CHESS_CHECKIN:")) {
+            const parts = decodedText.split(":");
+            const tId = parts[1];
+            const insId = parts[2];
+            
+            resultsDiv.textContent = "¡Código detectado! Procesando...";
+            resultsDiv.style.color = "var(--win-color)";
+            
+            try {
+                const res = await fetchWithAuth(`${window.API_BASE}/torneos/${tId}/inscripciones/${insId}/checkin`, { method: 'POST' });
+                if (res.ok) {
+                    resultsDiv.textContent = "✅ ASISTENCIA REGISTRADA";
+                    playChessSound('move'); // Feedback auditivo
+                    setTimeout(stopQrScanner, 2000);
+                    if(window.currentTournamentId === tId) renderTournamentDetail(tId);
+                } else {
+                    resultsDiv.textContent = "❌ Error en registro";
+                    resultsDiv.style.color = "var(--loss-color)";
+                }
+            } catch (e) {
+                resultsDiv.textContent = "❌ Error de conexión";
+            }
+        } else {
+            resultsDiv.textContent = "⚠️ Código no válido";
+            resultsDiv.style.color = "#eab308";
+        }
+    });
+};
+
+window.stopQrScanner = function() {
+    if (html5QrScanner) {
+        html5QrScanner.stop().then(() => {
+            html5QrScanner = null;
+            closeModal('qr-scanner-modal');
+        }).catch(() => {
+            closeModal('qr-scanner-modal');
+        });
+    } else {
+        closeModal('qr-scanner-modal');
+    }
+};
+
 function initNavigation() {
     document.querySelectorAll('.nav-btn').forEach(btn => {
         btn.addEventListener('click', async (e) => {
@@ -678,6 +750,7 @@ function initForms() {
                     data.nombre = document.getElementById('form-p-name').value;
                     data.email = document.getElementById('form-p-email').value;
                     data.elo = document.getElementById('form-p-elo').value;
+                    data.nombreEquipo = document.getElementById('form-p-team')?.value || '';
                     
                     console.log('Obteniendo reCAPTCHA index 2...');
                     const recaptchaToken = grecaptcha.getResponse(2);
@@ -969,6 +1042,19 @@ async function renderTournamentDetail(id) {
         
         if (isAdmin) {
             actions.innerHTML += `<button class="btn" style="background:#dc2626; color:white; padding:10px 20px; border-radius:8px;" onclick="deleteTournament('${id}')"><i class="fa-solid fa-trash-can"></i> ELIMINAR</button>`;
+            
+            // Mostrar botón de exportar FIDE y pestaña de árbitro para admins
+            const fideBtn = document.querySelector('button[onclick*="exportFide"]');
+            if(fideBtn) fideBtn.style.display = 'block';
+            
+            const arbiterTab = document.querySelector('.tab-btn[data-tab="tab-arbiter"]');
+            if(arbiterTab) arbiterTab.style.display = 'block';
+        } else {
+            const fideBtn = document.querySelector('button[onclick*="exportFide"]');
+            if(fideBtn) fideBtn.style.display = 'none';
+            
+            const arbiterTab = document.querySelector('.tab-btn[data-tab="tab-arbiter"]');
+            if(arbiterTab) arbiterTab.style.display = 'none';
         }
 
         // Botón PDF si ya ha iniciado o terminado
@@ -980,8 +1066,32 @@ async function renderTournamentDetail(id) {
     
     renderPlayers(inscripciones, t.estado, id);
     renderRounds(partidas, t.estado, id, t.sistemaJuego, inscripciones);
-    renderStandings(inscripciones, t.estado);
+    renderStandings(inscripciones, t.estado, t.sistemaJuego);
     renderBrackets(partidas, t.sistemaJuego);
+
+    // Si el usuario logueado está inscrito, mostrar su QR de presencia
+    const myIns = inscripciones.find(ins => ins.usuario.id === user.id);
+    const qrContainer = document.getElementById('my-qr-checkin-container');
+    if (myIns && qrContainer) {
+        qrContainer.style.display = 'block';
+        const qrDiv = document.getElementById('player-qr-code');
+        qrDiv.innerHTML = '';
+        if (!myIns.presente) {
+            new QRCode(qrDiv, {
+                text: `CHESS_CHECKIN:${id}:${myIns.id}`,
+                width: 128,
+                height: 128
+            });
+            document.getElementById('qr-status-text').innerHTML = '<i class="fa-solid fa-clock"></i> Pendiente de escaneo por el árbitro';
+            document.getElementById('qr-status-text').style.color = '#eab308';
+        } else {
+            qrDiv.innerHTML = '<i class="fa-solid fa-circle-check" style="font-size:4rem; color:#16a34a;"></i>';
+            document.getElementById('qr-status-text').innerHTML = '✅ ASISTENCIA REGISTRADA';
+            document.getElementById('qr-status-text').style.color = '#16a34a';
+        }
+    } else if (qrContainer) {
+        qrContainer.style.display = 'none';
+    }
 }
 
 function renderBrackets(partidas, sistema) {
@@ -1133,7 +1243,7 @@ function renderRounds(partidas, estado, tId, sistema, inscripciones) {
     const maxRound = Math.max(...roundNums);
 
     roundNums.sort((a, b) => b - a).forEach(rNum => {
-        const isLocked = (estado === 'FINALIZADO') || (sistema !== 'ROUND_ROBIN' && rNum < maxRound);
+        const isLocked = !isAdmin && ((estado === 'FINALIZADO') || (sistema !== 'ROUND_ROBIN' && rNum < maxRound));
         const div = document.createElement('div');
         div.className = 'round-section mt-4';
         div.style = 'background:var(--surface-card); padding:1.2rem; border-radius:12px; margin-bottom:1.5rem; box-shadow: 0 4px 6px rgba(0,0,0,0.05); border:1px solid var(--accent-light);';
@@ -1174,10 +1284,23 @@ window.setResult = async function(partidaId, resultado) {
     renderTournamentDetail(currentTournamentId);
 };
 
-function renderStandings(inscripciones, estado) {
+function renderStandings(inscripciones, estado, sistema) {
     const table = document.getElementById('standings-table');
     if (!table) return;
     const exp = document.getElementById('standings-explanation');
+    
+    if (sistema === 'GRUPOS') {
+        renderGroupStandings(inscripciones);
+        if(exp) exp.innerHTML = `<i class="fa-solid fa-layer-group"></i> Clasificación por Grupos. Los mejores de cada grupo avanzan.`;
+        return;
+    }
+
+    if (sistema === 'EQUIPOS') {
+        renderTeamStandings(inscripciones);
+        if(exp) exp.innerHTML = `<i class="fa-solid fa-users-viewfinder"></i> Batalla de Equipos. Sumatoria de puntos por club.`;
+        return;
+    }
+
     if(exp) exp.innerHTML = `<i class="fa-solid fa-circle-info"></i> Desempates: 1º <strong>Buchholz</strong>, 2º <strong>Sonneborn-Berger</strong>.`;
     const thead = table.querySelector('thead');
     thead.innerHTML = `<tr><th>Pos</th><th>Jugador</th><th>Pts</th><th>Buchholz</th><th>S-B</th><th>Partidas</th></tr>`;
@@ -1195,6 +1318,71 @@ function renderStandings(inscripciones, estado) {
         else if(i === 1) { pos = '🥈 Plata'; style = 'background:rgba(148,163,184,0.15); border-left:5px solid #94a3b8;'; }
         else if(i === 2) { pos = '🥉 Bronce'; style = 'background:rgba(180,83,9,0.15); border-left:5px solid #b45309;'; }
         return `<tr style="${style}"><td>${pos}</td><td><a href="javascript:void(0)" onclick="showPlayerStats('${ins.usuario.id}')" style="text-decoration:none; color:var(--text-main); font-weight:700;">${ins.usuario.username}</a></td><td><span style="color:var(--accent-color); font-weight:800;">${ins.puntosAcumulados}</span></td><td>${ins.buchholz || 0}</td><td>${ins.sonnebornBerger || 0}</td><td>${ins.partidasJugadas}</td></tr>`;
+    }).join('');
+}
+
+function renderGroupStandings(inscripciones) {
+    const table = document.getElementById('standings-table');
+    const tbody = table.querySelector('tbody');
+    const thead = table.querySelector('thead');
+    thead.innerHTML = `<tr><th>Grupo</th><th>Jugador</th><th>Pts</th><th>Victoria</th><th>Empate</th><th>Derrota</th></tr>`;
+    
+    // Agrupar
+    const grupos = {};
+    inscripciones.forEach(ins => {
+        const g = ins.numeroGrupo || 'S/G';
+        if(!grupos[g]) grupos[g] = [];
+        grupos[g].push(ins);
+    });
+
+    let html = '';
+    Object.keys(grupos).sort().forEach(g => {
+        const members = grupos[g].sort((a,b) => b.puntosAcumulados - a.puntosAcumulados);
+        members.forEach((ins, i) => {
+            const isTop = i < 2; // Resaltar los top 2 que pasan
+            html += `<tr style="${isTop ? 'background:rgba(22,163,74,0.05); border-left:4px solid #16a34a;' : ''}">
+                <td>${i === 0 ? `<strong>Grupo ${g}</strong>` : ''}</td>
+                <td><span style="font-weight:600;">${ins.usuario.username}</span> ${i===0?'👑':''}</td>
+                <td><span style="color:var(--accent-color); font-weight:800;">${ins.puntosAcumulados}</span></td>
+                <td>${ins.victorias}</td>
+                <td>${ins.empates}</td>
+                <td>${ins.derrotas}</td>
+            </tr>`;
+        });
+        html += `<tr style="height:10px; background:transparent;"><td colspan="6"></td></tr>`;
+    });
+    tbody.innerHTML = html;
+}
+
+function renderTeamStandings(inscripciones) {
+    const table = document.getElementById('standings-table');
+    const tbody = table.querySelector('tbody');
+    const thead = table.querySelector('thead');
+    thead.innerHTML = `<tr><th>Pos</th><th>Equipo / Club</th><th>Jugadores</th><th>Pts Totales</th></tr>`;
+
+    const teams = {};
+    inscripciones.forEach(ins => {
+        const t = ins.nombreEquipo || 'Independiente';
+        if(!teams[t]) teams[t] = { pts: 0, count: 0, members: [] };
+        teams[t].pts += ins.puntosAcumulados;
+        teams[t].count++;
+        teams[t].members.push(ins.usuario.username);
+    });
+
+    const sortedTeams = Object.keys(teams).sort((a,b) => teams[b].pts - teams[a].pts);
+    
+    tbody.innerHTML = sortedTeams.map((tName, i) => {
+        const team = teams[tName];
+        let pos = `#${i+1}`;
+        let style = '';
+        if(i === 0) { pos = '🏆 Winner'; style = 'background:rgba(251,191,36,0.1); border-left:5px solid #fbbf24; font-weight:bold;'; }
+        
+        return `<tr style="${style}">
+            <td>${pos}</td>
+            <td><div style="font-weight:700; color:var(--accent-color);">${tName}</div></td>
+            <td style="font-size:0.8rem; color:var(--text-muted);">${team.count} jugadores</td>
+            <td><span style="font-size:1.1rem; font-weight:800; color:var(--win-color);">${team.pts}</span></td>
+        </tr>`;
     }).join('');
 }
 

@@ -61,9 +61,27 @@ public class Inscripcion {
     @Column(name = "sonneborn_berger")
     private Double sonnebornBerger = 0.0;
 
+    @Column(name = "presente")
+    private Boolean presente = false;
+
+    @Column(name = "numero_grupo")
+    private Integer numeroGrupo;
+
+    @Column(name = "nombre_equipo")
+    private String nombreEquipo;
+
     public Double getBuchholz() { return buchholz; }
     public void setBuchholz(Double buchholz) { this.buchholz = buchholz; }
 
     public Double getSonnebornBerger() { return sonnebornBerger; }
     public void setSonnebornBerger(Double sonnebornBerger) { this.sonnebornBerger = sonnebornBerger; }
+
+    public Boolean getPresente() { return presente; }
+    public void setPresente(Boolean presente) { this.presente = presente; }
+
+    public Integer getNumeroGrupo() { return numeroGrupo; }
+    public void setNumeroGrupo(Integer numeroGrupo) { this.numeroGrupo = numeroGrupo; }
+
+    public String getNombreEquipo() { return nombreEquipo; }
+    public void setNombreEquipo(String nombreEquipo) { this.nombreEquipo = nombreEquipo; }
 }

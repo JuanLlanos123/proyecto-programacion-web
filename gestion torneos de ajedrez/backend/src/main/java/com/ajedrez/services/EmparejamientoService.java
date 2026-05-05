@@ -47,6 +47,10 @@ public class EmparejamientoService {
             return generarRondaEliminatoria(torneo, inscripciones);
         } else if ("DOBLE_ELIMINATORIA".equals(torneo.getSistemaJuego())) {
             return generarRondaDobleEliminatoria(torneo, inscripciones);
+        } else if ("GRUPOS".equals(torneo.getSistemaJuego())) {
+            return generarRondaGrupos(torneo, inscripciones);
+        } else if ("EQUIPOS".equals(torneo.getSistemaJuego())) {
+            return generarRondaEquipos(torneo, inscripciones);
         } else {
             return generarRoundRobin(torneo, inscripciones);
         }
@@ -461,5 +465,91 @@ public class EmparejamientoService {
             ins.setSonnebornBerger(sonnebornBerger);
         }
         inscripcionRepository.saveAll(inscripciones);
+    }
+    private List<Partida> generarRondaGrupos(Torneo torneo, List<Inscripcion> inscripciones) {
+        // Asignar grupos si no están asignados (4 jugadores por grupo)
+        List<Inscripcion> sinGrupo = inscripciones.stream().filter(i -> i.getNumeroGrupo() == null).collect(Collectors.toList());
+        if (!sinGrupo.isEmpty()) {
+            Collections.shuffle(sinGrupo);
+            int grupoActual = 1;
+            // Buscar el último grupo existente
+            for (Inscripcion i : inscripciones) {
+                if (i.getNumeroGrupo() != null && i.getNumeroGrupo() >= grupoActual) grupoActual = i.getNumeroGrupo() + 1;
+            }
+            
+            for (int i = 0; i < sinGrupo.size(); i++) {
+                sinGrupo.get(i).setNumeroGrupo(grupoActual);
+                if ((i + 1) % 4 == 0) grupoActual++;
+            }
+            inscripcionRepository.saveAll(sinGrupo);
+        }
+
+        // Generar Round Robin para cada grupo
+        List<Partida> todasLasPartidas = new ArrayList<>();
+        Map<Integer, List<Inscripcion>> grupos = inscripciones.stream()
+                .filter(i -> i.getNumeroGrupo() != null)
+                .collect(Collectors.groupingBy(Inscripcion::getNumeroGrupo));
+
+        for (Map.Entry<Integer, List<Inscripcion>> entry : grupos.entrySet()) {
+            todasLasPartidas.addAll(generarRoundRobin(torneo, entry.getValue()));
+        }
+
+        return todasLasPartidas;
+    }
+
+    private List<Partida> generarRondaEquipos(Torneo torneo, List<Inscripcion> inscripciones) {
+        // Similar al Suizo pero evita emparejamientos del mismo equipo
+        List<Partida> partidasExistentes = partidaRepository.findByTorneoId(torneo.getId());
+        int rondaActual = partidasExistentes.stream().mapToInt(p -> p.getRondaNumero() == null ? 0 : p.getRondaNumero()).max().orElse(0);
+        int nuevaRonda = rondaActual + 1;
+
+        List<Inscripcion> ordenados = new ArrayList<>(inscripciones);
+        ordenados.sort((a, b) -> Double.compare(b.getPuntosAcumulados(), a.getPuntosAcumulados()));
+
+        List<Usuario> jugadoresDisponibles = ordenados.stream().map(Inscripcion::getUsuario).collect(Collectors.toList());
+        List<Partida> generadas = new ArrayList<>();
+
+        while (jugadoresDisponibles.size() >= 2) {
+            Usuario w = jugadoresDisponibles.remove(0);
+            Usuario b = null;
+            
+            // Buscar oponente que no sea del mismo equipo y no hayan jugado
+            for (int i = 0; i < jugadoresDisponibles.size(); i++) {
+                Usuario candidato = jugadoresDisponibles.get(i);
+                if (!yaJugaron(w, candidato, partidasExistentes) && !sonDelMismoEquipo(w, candidato, inscripciones)) {
+                    b = jugadoresDisponibles.remove(i);
+                    break;
+                }
+            }
+            
+            // Si no hay oponente "ideal", emparejar con el primero disponible
+            if (b == null) b = jugadoresDisponibles.remove(0);
+
+            Partida p = new Partida();
+            p.setTorneo(torneo);
+            p.setRondaNumero(nuevaRonda);
+            p.setBlancas(w);
+            p.setNegras(b);
+            generadas.add(partidaRepository.save(p));
+        }
+
+        if (!jugadoresDisponibles.isEmpty()) {
+            Partida p = new Partida();
+            p.setTorneo(torneo);
+            p.setRondaNumero(nuevaRonda);
+            p.setBlancas(jugadoresDisponibles.remove(0));
+            p.setResultado("BYE");
+            generadas.add(partidaRepository.save(p));
+        }
+
+        torneo.setEstado("EN_CURSO");
+        torneoRepository.save(torneo);
+        return generadas;
+    }
+
+    private boolean sonDelMismoEquipo(Usuario u1, Usuario u2, List<Inscripcion> inscripciones) {
+        String equipo1 = inscripciones.stream().filter(i -> i.getUsuario().getId().equals(u1.getId())).findFirst().map(Inscripcion::getNombreEquipo).orElse(null);
+        String equipo2 = inscripciones.stream().filter(i -> i.getUsuario().getId().equals(u2.getId())).findFirst().map(Inscripcion::getNombreEquipo).orElse(null);
+        return equipo1 != null && equipo1.equals(equipo2);
     }
 }

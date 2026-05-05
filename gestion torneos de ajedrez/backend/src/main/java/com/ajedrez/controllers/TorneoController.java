@@ -13,8 +13,19 @@ import org.springframework.web.bind.annotation.*;
 
 import com.ajedrez.models.Usuario;
 import com.ajedrez.repositories.UsuarioRepository;
+import com.ajedrez.repositories.EloHistoryRepository;
+import com.ajedrez.services.RecaptchaService;
+import com.ajedrez.services.EmailService;
+import com.ajedrez.services.GamificationService;
+import com.ajedrez.services.FideExportService;
+import com.ajedrez.models.EloHistory;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import java.util.List;
 import java.util.Map;
+import java.util.Date;
 
 /**
  * CONTROLADOR DE TORNEOS
@@ -41,20 +52,23 @@ public class TorneoController {
     private EmparejamientoService emparejamientoService;
 
     @Autowired
-    private com.ajedrez.services.RecaptchaService recaptchaService;
+    private RecaptchaService recaptchaService;
 
     @Autowired
-    private com.ajedrez.services.EmailService emailService;
+    private EmailService emailService;
 
     @Autowired
-    private com.ajedrez.repositories.EloHistoryRepository eloHistoryRepository;
+    private EloHistoryRepository eloHistoryRepository;
 
     @Autowired
-    private com.ajedrez.services.GamificationService gamificationService;
+    private GamificationService gamificationService;
 
     // Template para enviar mensajes de WebSockets al frontend
     @Autowired
-    private org.springframework.messaging.simp.SimpMessagingTemplate messagingTemplate;
+    private SimpMessagingTemplate messagingTemplate;
+
+    @Autowired
+    private FideExportService fideExportService;
 
     /** Obtiene todos los torneos registrados */
     @GetMapping
@@ -200,13 +214,16 @@ public class TorneoController {
         Inscripcion inscripcion = new Inscripcion();
         inscripcion.setTorneo(torneo);
         inscripcion.setUsuario(u);
+        if(body.containsKey("nombreEquipo")) {
+            inscripcion.setNombreEquipo(body.get("nombreEquipo"));
+        }
         
         return ResponseEntity.ok(inscripcionRepository.save(inscripcion));
     }
 
     /** Elimina un torneo y todos sus datos relacionados (Partidas, Inscripciones) */
     @DeleteMapping("/{id}")
-    @org.springframework.transaction.annotation.Transactional
+    @Transactional
     public ResponseEntity<?> eliminarTorneo(@PathVariable Long id) {
         if (!torneoRepository.existsById(id)) return ResponseEntity.notFound().build();
         List<Partida> partidas = partidaRepository.findByTorneoId(id);
@@ -226,12 +243,21 @@ public class TorneoController {
         }).orElse(ResponseEntity.notFound().build());
     }
 
+    /** Marca a un jugador como 'presente' (Check-in) para el torneo */
+    @PostMapping("/{id}/inscripciones/{insId}/checkin")
+    public ResponseEntity<?> marcarPresente(@PathVariable Long id, @PathVariable Long insId) {
+        return inscripcionRepository.findById(insId).map(ins -> {
+            ins.setPresente(true);
+            return ResponseEntity.ok(inscripcionRepository.save(ins));
+        }).orElse(ResponseEntity.notFound().build());
+    }
+
     /** Finaliza el torneo y marca la fecha de cierre */
     @PutMapping("/{id}/finalizar")
     public ResponseEntity<?> finalizarTorneo(@PathVariable Long id) {
         return torneoRepository.findById(id).map(torneo -> {
             torneo.setEstado("FINALIZADO");
-            torneo.setFechaFin(new java.util.Date());
+            torneo.setFechaFin(new Date());
             Torneo saved = torneoRepository.save(torneo);
             
             // Actualizar ELO de participantes
@@ -252,7 +278,7 @@ public class TorneoController {
                     usuarioRepository.save(u);
                     
                     // Guardar en historial
-                    eloHistoryRepository.save(new com.ajedrez.models.EloHistory(u, newElo, "Torneo Finalizado: " + torneo.getNombre()));
+                    eloHistoryRepository.save(new EloHistory(u, newElo, "Torneo Finalizado: " + torneo.getNombre()));
                 }
             }
             
@@ -295,5 +321,17 @@ public class TorneoController {
             
             return ResponseEntity.ok(torneoRepository.save(torneo));
         }).orElse(ResponseEntity.notFound().build());
+    }
+
+    /** Exporta el torneo en formato TRF de la FIDE */
+    @GetMapping("/{id}/export/fide")
+    public ResponseEntity<String> exportarFide(@PathVariable Long id) {
+        if (id == null) return ResponseEntity.badRequest().<String>build();
+        return torneoRepository.findById(id).map(torneo -> {
+            String trfData = fideExportService.generateTrf(torneo);
+            HttpHeaders headers = new HttpHeaders();
+            headers.add("Content-Disposition", "attachment; filename=" + torneo.getNombre().replace(" ", "_") + ".trf");
+            return new ResponseEntity<>(trfData, headers, HttpStatus.OK);
+        }).orElse(ResponseEntity.notFound().<String>build());
     }
 }

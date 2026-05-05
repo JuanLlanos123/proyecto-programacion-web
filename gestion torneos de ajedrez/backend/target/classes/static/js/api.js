@@ -170,6 +170,28 @@ const API = {
         }
     },
 
+    /** Exporta el torneo en formato TRF de la FIDE */
+    async exportFide(id) {
+        try {
+            const response = await fetchWithAuth(`${API_BASE}/torneos/${id}/export/fide`);
+            if (response.ok) {
+                const blob = await response.blob();
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `Torneo_${id}_FIDE.trf`;
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+                return true;
+            }
+            return false;
+        } catch (error) {
+            console.error("Error al exportar FIDE:", error);
+            return false;
+        }
+    },
+
     async inscribirJugador(torneoId, data) {
         try {
             const response = await fetchWithAuth(`${API_BASE}/torneos/${torneoId}/inscripciones`, {

@@ -26,6 +26,9 @@
     <script src="https://unpkg.com/@chrisoakman/chessboardjs@1.0.0/dist/chessboard-1.0.0.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
+    <!-- QR Code Libraries -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <script src="https://unpkg.com/html5-qrcode"></script>
 </head>
 
 <body>
@@ -310,10 +313,24 @@
                         <h2 id="detail-t-name">Nombre del Torneo</h2>
                         <span class="status-badge status-pending" id="detail-t-status">Pendiente</span>
                     </div>
-                    <div id="detail-t-actions">
+                    <div id="detail-t-actions" style="display: flex; gap: 10px;">
                         <!-- Start/Complete buttons handled via JS -->
                     </div>
+                    <button class="btn btn-secondary admin-only" onclick="API.exportFide(currentTournamentId)" 
+                        style="background: #4a3018; color: white; border: none; margin-top: 10px; display: none;">
+                        <i class="fa-solid fa-file-export"></i> Exportar FIDE (TRF)
+                    </button>
                 </header>
+
+                <!-- PERSONAL QR CHECK-IN (FOR PLAYERS) -->
+                <div id="my-qr-checkin-container" class="card mt-3" style="display:none; background: #fffbeb; border: 1px solid #fde68a; padding: 20px; text-align: center;">
+                    <h4 style="margin-top:0; color: #92400e;"><i class="fa-solid fa-id-card"></i> Tu Pase de Asistencia</h4>
+                    <p style="font-size:0.85rem; color: #b45309; margin-bottom: 15px;">Muestra este código al árbitro para confirmar tu presencia en el torneo.</p>
+                    <div style="display: flex; flex-direction: column; align-items: center; gap: 10px;">
+                        <div id="player-qr-code" style="padding: 10px; background: white; border-radius: 8px; border: 1px solid #e2e8f0;"></div>
+                        <div id="qr-status-text" style="font-weight: 700; font-size: 0.9rem;">Cargando estado...</div>
+                    </div>
+                </div>
 
                 <div class="card mt-4">
                     <div class="tabs">
@@ -321,6 +338,7 @@
                         <button class="tab-btn" data-tab="tab-rounds">Emparejamientos</button>
                         <button class="tab-btn" data-tab="tab-standings">Tabla de Posiciones</button>
                         <button class="tab-btn" data-tab="tab-bracket" id="btn-tab-bracket" style="display:none;">Cuadro (Brackets)</button>
+                        <button class="tab-btn admin-only" data-tab="tab-arbiter" style="display:none;">Herramientas Árbitro</button>
                     </div>
 
                     <!-- Players Tab -->
@@ -398,6 +416,45 @@
                         </div>
                         <div id="bracket-visualization" style="overflow-x: auto; padding: 20px; background: var(--surface-card); border-radius: 10px; min-height: 400px; border: 1px solid var(--accent-light);">
                             <!-- Visual brackets will be here -->
+                        </div>
+                    </div>
+
+                    <!-- Arbiter Tools Tab -->
+                    <div id="tab-arbiter" class="tab-content">
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; padding: 10px;">
+                            <div class="card" style="padding: 20px; border: 1px solid var(--accent-light);">
+                                <h4 style="margin-top:0;"><i class="fa-solid fa-qrcode"></i> Control de Presencia</h4>
+                                <p style="font-size:0.85rem; color:var(--text-muted);">Genera y escanea códigos QR para confirmar la asistencia de los jugadores antes de la ronda.</p>
+                                <button class="btn btn-primary" onclick="startQrScanner()">
+                                    Abrir Escáner QR
+                                </button>
+                            </div>
+                            <div class="card" style="padding: 20px; border: 1px solid var(--accent-light); position: relative; overflow: hidden;">
+                                <div style="position: absolute; top: -10px; right: -10px; font-size: 4rem; opacity: 0.05; color: var(--accent-color);"><i class="fa-solid fa-file-export"></i></div>
+                                <h4 style="margin-top:0; color: var(--accent-color);"><i class="fa-solid fa-file-contract"></i> Reporte Oficial FIDE</h4>
+                                <p style="font-size:0.85rem; color:var(--text-muted);">Genera el archivo estándar .TRF compatible con los sistemas de emparejamiento de la FIDE.</p>
+                                <div style="background: rgba(139, 90, 43, 0.05); padding: 10px; border-radius: 8px; margin-bottom: 15px; font-size: 0.75rem; border: 1px dashed var(--accent-light);">
+                                    <i class="fa-solid fa-circle-check"></i> Incluye datos de ELO, resultados y rondas.
+                                </div>
+                                <button class="btn btn-primary" style="width: 100%; background: linear-gradient(135deg, #8b5a2b, #5d4037); border: none;" onclick="exportFide(currentTournamentId)">
+                                    <i class="fa-solid fa-download"></i> Exportar Formato FIDE (.trf)
+                                </button>
+                            </div>
+                            <div class="card" style="padding: 20px; border: 1px solid var(--accent-light);">
+                                <h4 style="margin-top:0; color: #16a34a;"><i class="fa-solid fa-print"></i> Planillas Oficiales</h4>
+                                <p style="font-size:0.85rem; color:var(--text-muted);">Genera un PDF con planillas de anotación para todas las mesas de la ronda actual.</p>
+                                <button class="btn btn-secondary" style="background:#16a34a; color:white; width: 100%;" onclick="exportAnalysisPDF()">
+                                    <i class="fa-solid fa-file-pdf"></i> Imprimir Planillas (PDF)
+                                </button>
+                            </div>
+                            <div class="card" style="padding: 20px; border: 1px solid var(--accent-light);">
+                                <h4 style="margin-top:0; color: #7c3aed;"><i class="fa-solid fa-user-shield"></i> Gestión de Árbitro</h4>
+                                <p style="font-size:0.85rem; color:var(--text-muted);">Acciones de supervisión y corrección de emparejamientos y resultados.</p>
+                                <div style="display: flex; gap: 10px;">
+                                    <button class="btn btn-secondary" style="flex: 1;" onclick="showView('tab-rounds')">Rondas</button>
+                                    <button class="btn btn-secondary" style="flex: 1;" onclick="openModal('edit-tournament-modal')">Ajustes</button>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -732,7 +789,7 @@
                             </div>
                         </div>
                     </div>
-                </div>
+
 
                 <!-- SAVED ANALYSES SECTION -->
                 <div class="card mt-4" style="padding: 25px; background: var(--surface-card); border: 1px solid var(--accent-light);">
@@ -880,6 +937,8 @@
                         <option value="SUIZO">&#9820; Sistema Suizo</option>
                         <option value="ELIMINATORIA">&#9812; Eliminatoria Directa (Knockout)</option>
                         <option value="DOBLE_ELIMINATORIA">&#9813; Doble Eliminación</option>
+                        <option value="GRUPOS">&#9814; Torneo por Grupos (Mundial Style)</option>
+                        <option value="EQUIPOS">&#9816; Batalla por Equipos (Team Battle)</option>
                     </select>
                 </div>
                 <div class="form-group" id="group-t-rondas" style="display: none;">
@@ -927,6 +986,10 @@
                     <div class="form-group">
                         <label>ELO FIDE</label>
                         <input type="number" class="form-control" id="form-p-elo" placeholder="Ej: 1200">
+                    </div>
+                    <div class="form-group">
+                        <label>Nombre del Equipo (Opcional)</label>
+                        <input type="text" class="form-control" id="form-p-team" placeholder="Ej: Club de Ajedrez Central">
                     </div>
                     <div class="g-recaptcha" data-sitekey="6Le-KccsAAAAAM7dNenOory_rC3Jv09Vc0jg5NXu"
                         style="margin-bottom:1rem; display:flex; justify-content:center;"></div>
@@ -1015,6 +1078,8 @@
                         <option value="SUIZO">&#9820; Sistema Suizo</option>
                         <option value="ELIMINATORIA">&#9812; Eliminatoria Directa (Knockout)</option>
                         <option value="DOBLE_ELIMINATORIA">&#9813; Doble Eliminación (Blue Lock Style)</option>
+                        <option value="GRUPOS">&#9814; Torneo por Grupos</option>
+                        <option value="EQUIPOS">&#9816; Batalla por Equipos</option>
                     </select>
                 </div>
                 <div class="form-group">
@@ -1127,6 +1192,22 @@
                 </div>
                 <button type="submit" class="btn btn-primary w-100">Otorgar Logro</button>
             </form>
+        </div>
+    </div>
+
+    <!-- QR SCANNER MODAL -->
+    <div id="qr-scanner-modal" class="modal-overlay">
+        <div class="modal-content" style="max-width: 500px;">
+            <div class="modal-header" style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #eee; padding-bottom:10px; margin-bottom:15px;">
+                <h3 style="margin:0;"><i class="fa-solid fa-qrcode"></i> Escáner de Presencia</h3>
+                <button class="btn" onclick="stopQrScanner()" style="background:none; border:none; font-size:1.5rem; cursor:pointer;">&times;</button>
+            </div>
+            <div id="qr-reader" style="width: 100%; border-radius: 8px; overflow: hidden; background: #f8f9fa; border: 2px dashed #ccc; min-height: 250px;"></div>
+            <div id="qr-reader-results" style="margin-top: 15px; padding: 10px; text-align: center; font-weight: bold; color: var(--accent-color);"></div>
+            <div style="margin-top: 15px; text-align: center;">
+                <p style="font-size: 0.8rem; color: var(--text-muted);">Apunta la cámara al código QR del jugador para registrar su asistencia.</p>
+                <button class="btn btn-secondary mt-2" onclick="stopQrScanner()" style="width:100%;">Cerrar</button>
+            </div>
         </div>
     </div>
 
