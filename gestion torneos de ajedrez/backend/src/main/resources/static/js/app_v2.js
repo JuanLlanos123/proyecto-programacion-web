@@ -560,22 +560,22 @@ function initForms() {
     const formCreatePlayer = document.getElementById('form-create-player');
     
     if(toggleLink) {
-        toggleLink.addEventListener('click', (e) => {
+        toggleLink.onclick = function(e) {
             e.preventDefault();
             errorDiv.style.display = 'none';
-            // Use getComputedStyle or check for explicit 'block' since it might be empty
-            const isLoginVisible = window.getComputedStyle(formLogin).display !== 'none';
             
-            if(!isLoginVisible) {
-                formLogin.style.display = 'block'; 
+            // Si el login está oculto, mostramos el login
+            if (formLogin.style.display === 'none') {
+                formLogin.style.display = 'block';
                 formRegister.style.display = 'none';
-                toggleLink.textContent = '¿No tienes cuenta? Regístrate';
+                toggleLink.innerHTML = '¿No tienes cuenta? <b>Regístrate</b>';
             } else {
-                formLogin.style.display = 'none'; 
+                // Si el login está visible, mostramos el registro
+                formLogin.style.display = 'none';
                 formRegister.style.display = 'block';
-                toggleLink.textContent = '¿Ya tienes cuenta? Inicia sesión';
+                toggleLink.innerHTML = '¿Ya tienes cuenta? <b>Inicia sesión</b>';
             }
-        });
+        };
     }
 
     if (formLogin) {
