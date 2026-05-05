@@ -1618,8 +1618,17 @@ window.exportAnalysisPDF = function() {
 
             const getEvalStr = (ev) => {
                 if (!ev) return "";
-                const sym = { 'brilliant': '!!', 'best': '!', 'excellent': '!', 'inaccuracy': '?!', 'mistake': '?', 'blunder': '??' }[ev.icon] || "";
-                return `${sym} (${ev.diff > 0 ? '+' : ''}${ev.diff.toFixed(2)})`;
+                const map = {
+                    'brilliant': { s: '!!', n: 'Brillante' },
+                    'best': { s: '!', n: 'Mejor' },
+                    'excellent': { s: '!', n: 'Excelente' },
+                    'inaccuracy': { s: '?!', n: 'Imprecisión' },
+                    'mistake': { s: '?', n: 'Error' },
+                    'blunder': { s: '??', n: 'Error Grave' }
+                };
+                const info = map[ev.icon] || { s: '', n: '' };
+                const evalVal = (ev.diff > 0 ? '+' : '') + ev.diff.toFixed(2);
+                return `${info.s} ${info.n} (${evalVal})`;
             };
 
             movesData.push([
