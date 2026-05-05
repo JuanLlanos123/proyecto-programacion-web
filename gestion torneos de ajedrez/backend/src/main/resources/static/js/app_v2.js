@@ -1643,6 +1643,11 @@ window.initAnalysisBoard = function() {
             let move = analysisGame.move({ from: source, to: target, promotion: 'q' });
             if (move === null) return 'snapback';
             
+            if (move.flags.includes('c')) playChessSound('capture');
+            else if (analysisGame.in_check()) playChessSound('check');
+            else playChessSound('move');
+
+            
             // Sync board to handle castling, en passant, and promotion visuals
             setTimeout(() => { analysisBoard.position(analysisGame.fen()); }, 100);
             
@@ -1732,6 +1737,7 @@ window.loadPGN = function() {
         currentMoveIndex = currentHistory.length - 1;
         moveEvaluations = new Array(currentHistory.length).fill(null);
         analysisBoard.position(analysisGame.fen());
+        playChessSound('move');
         updateAnalysisUI();
     } else {
         alert('Error: PGN no válido.');
