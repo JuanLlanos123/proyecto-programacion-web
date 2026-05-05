@@ -1517,9 +1517,17 @@ window.moveAnalysis = function(dir) {
     }
 
     const tempGame = new Chess();
+    let lastMove = null;
     for (let i = 0; i <= currentMoveIndex; i++) {
-        tempGame.move(currentHistory[i]);
+        lastMove = tempGame.move(currentHistory[i]);
     }
+    
+    if (lastMove) {
+        if (lastMove.flags.includes('c')) playChessSound('capture');
+        else if (tempGame.in_check()) playChessSound('check');
+        else playChessSound('move');
+    }
+
     analysisBoard.position(tempGame.fen());
     analysisGame = tempGame;
     updateAnalysisUI();
@@ -1642,9 +1650,17 @@ window.moveAnalysisAbsolute = function(index) {
     if (index < 0 || index >= currentHistory.length) return;
     currentMoveIndex = index;
     const tempGame = new Chess();
+    let lastMove = null;
     for (let i = 0; i <= currentMoveIndex; i++) {
-        tempGame.move(currentHistory[i]);
+        lastMove = tempGame.move(currentHistory[i]);
     }
+    
+    if (lastMove) {
+        if (lastMove.flags.includes('c')) playChessSound('capture');
+        else if (tempGame.in_check()) playChessSound('check');
+        else playChessSound('move');
+    }
+
     analysisBoard.position(tempGame.fen());
     analysisGame = tempGame;
     updateAnalysisUI();
@@ -1755,6 +1771,7 @@ window.runFullAnalysis = async function() {
     // Restore the worker
     stockfishWorker.onmessage = originalOnMessage;
     updateAccuracySummary();
+    playChessSound('victory');
     startAnalysis();
 };
 
@@ -2053,5 +2070,26 @@ window.confirmDeleteAchievement = async function(achievementId, userId) {
         } else {
             alert('Error al eliminar el logro.');
         }
+    }
+};
+
+window.toggleSounds = function() {
+    const enabled = document.getElementById('sound-toggle').checked;
+    localStorage.setItem('chess_sounds_enabled', enabled);
+};
+
+const chessSounds = {
+    move: new Audio('https://lichess.org/assets/sound/standard/Move.ogg'),
+    capture: new Audio('https://lichess.org/assets/sound/standard/Capture.ogg'),
+    check: new Audio('https://lichess.org/assets/sound/standard/Check.ogg'),
+    victory: new Audio('https://lichess.org/assets/sound/standard/Victory.ogg')
+};
+
+window.playChessSound = function(type) {
+    if (localStorage.getItem('chess_sounds_enabled') === 'false') return;
+    const sound = chessSounds[type];
+    if (sound) {
+        sound.currentTime = 0;
+        sound.play().catch(() => {});
     }
 };
