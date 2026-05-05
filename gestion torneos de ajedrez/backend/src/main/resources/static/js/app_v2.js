@@ -22,6 +22,7 @@ document.addEventListener('DOMContentLoaded', () => {
     renderDashboard();
     renderTournamentList();
     initAchievementManagement(); // Nueva función
+    if (typeof renderAchievements === 'function') renderAchievements(); // Forzar render al inicio
 });
 
 function checkAuthStatus() {
