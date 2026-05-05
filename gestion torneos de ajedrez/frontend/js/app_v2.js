@@ -349,15 +349,15 @@ window.renderAchievements = function() {
     ];
 
     list.innerHTML = allAchievements.map(a => `
-        <div class="card" style="display:flex; flex-direction:column; align-items:center; text-align:center; gap:12px; padding:1.5rem; border-top: 3px solid ${a.color};">
-            <div style="background:${a.color}; color:white; width:60px; height:60px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:1.6rem; flex-shrink:0;">
+        <div class="card" style="display:flex; flex-direction:column; align-items:center; text-align:center; gap:12px; padding:1.5rem; border-top: 4px solid ${a.color}; background: var(--surface-card); box-shadow: var(--shadow-card); transition: transform 0.3s ease;">
+            <div style="background:${a.color}20; color:${a.color}; width:64px; height:64px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:1.8rem; flex-shrink:0; border: 2px solid ${a.color}40;">
                 <i class="${a.icon}"></i>
             </div>
-            <div>
-                <h4 style="margin:0 0 4px; font-size:1rem;">${a.name}</h4>
-                <p style="font-size:0.82rem; color:var(--text-muted); line-height:1.4; margin:0;">${a.desc}</p>
+            <div style="flex:1;">
+                <h4 style="margin:0 0 6px; font-size:1.1rem; color:var(--text-main); font-weight:700;">${a.name}</h4>
+                <p style="font-size:0.85rem; color:var(--text-muted); line-height:1.5; margin:0;">${a.desc}</p>
             </div>
-            <span style="font-size:0.7rem; font-weight:700; letter-spacing:1px; color:${a.color}; background:${a.color}18; padding:2px 10px; border-radius:20px;">${a.category.toUpperCase()}</span>
+            <span style="font-size:0.75rem; font-weight:800; letter-spacing:1px; color:${a.color}; background:${a.color}15; padding:4px 14px; border-radius:20px; text-transform: uppercase;">${a.category}</span>
         </div>
     `).join('');
 };
@@ -467,6 +467,12 @@ window.showPlayerStats = async function(userId) {
         }
     }
 
+    // Renderizar gráfico de ELO
+    renderEloChart(data.partidas.map(p => ({
+        fecha: p.fecha,
+        elo: p.nuevoElo || 1200
+    })));
+
     openModal('player-stats-modal');
 }
 
@@ -476,52 +482,47 @@ function renderEloChart(history) {
     const ctx = canvas.getContext('2d');
     if (eloChartInstance) eloChartInstance.destroy();
 
-    const labels = history.map(h => new Date(h.fecha).toLocaleDateString());
-    const points = history.map(h => h.elo);
-
-    const isDark = document.body.classList.contains('dark-theme');
-    const textColor = isDark ? '#f0eade' : '#2D2C2A';
-    const gridColor = isDark ? '#2d1f1a' : '#f1f5f9';
-    const accentColor = '#8b5a2b';
+    // Si no hay historial, mostrar un punto base
+    const dataPoints = history.length > 0 ? history.map(h => h.elo) : [1200];
+    const labels = history.length > 0 ? history.map((_, i) => `Juego ${i + 1}`) : ['Inicio'];
 
     eloChartInstance = new Chart(ctx, {
         type: 'line',
         data: {
             labels: labels,
             datasets: [{
-                label: 'ELO',
-                data: points,
-                borderColor: accentColor,
-                backgroundColor: isDark ? 'rgba(139, 90, 43, 0.2)' : 'rgba(139, 90, 43, 0.1)',
+                label: 'Variación de ELO',
+                data: dataPoints,
+                borderColor: '#8d6e63',
+                backgroundColor: 'rgba(141, 110, 99, 0.1)',
                 borderWidth: 3,
-                tension: 0.3,
-                fill: true,
                 pointRadius: 4,
-                pointBackgroundColor: accentColor
+                pointBackgroundColor: '#5d4037',
+                fill: true,
+                tension: 0.4
             }]
         },
         options: {
             responsive: true,
             maintainAspectRatio: false,
-            plugins: { 
+            plugins: {
                 legend: { display: false },
                 tooltip: {
-                    backgroundColor: isDark ? '#1c1512' : '#FFFFFF',
-                    titleColor: isDark ? '#f9f7f2' : '#000',
-                    bodyColor: isDark ? '#f9f7f2' : '#000',
-                    borderColor: accentColor,
-                    borderWidth: 1
+                    mode: 'index',
+                    intersect: false,
+                    backgroundColor: 'rgba(45, 44, 42, 0.9)',
+                    titleColor: '#fff',
+                    bodyColor: '#fff'
                 }
             },
             scales: {
                 y: { 
                     beginAtZero: false, 
-                    grid: { color: gridColor },
-                    ticks: { color: textColor }
+                    grid: { color: 'rgba(0,0,0,0.05)' },
+                    ticks: { font: { weight: 'bold' } }
                 },
                 x: { 
-                    grid: { display: false },
-                    ticks: { color: textColor }
+                    grid: { display: false } 
                 }
             }
         }
@@ -616,7 +617,10 @@ function initForms() {
             if(!recaptchaToken) { alert('Marca el reCAPTCHA'); return; }
             const res = await API.register(user, pass, email, 'ADMIN', elo, recaptchaToken); 
             if (typeof grecaptcha !== 'undefined') grecaptcha.reset(1);
-            if (res) { alert("Cuenta creada."); toggleLink.click(); }
+            if (res) { 
+                alert("¡Cuenta creada con éxito! Ahora puedes iniciar sesión."); 
+                toggleAuthMode(); 
+            }
         });
     }
 
