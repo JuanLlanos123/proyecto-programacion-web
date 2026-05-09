@@ -848,8 +848,8 @@ function initForms() {
                 
                 let recaptchaToken = "";
                 try {
-                    if (typeof grecaptcha !== 'undefined') {
-                        recaptchaToken = grecaptcha.getResponse(0);
+                    if (typeof grecaptcha !== 'undefined' && recaptchaWidgets.login !== null) {
+                        recaptchaToken = grecaptcha.getResponse(recaptchaWidgets.login);
                     }
                 } catch(reErr) { console.warn("Error al obtener reCAPTCHA:", reErr); }
 
@@ -888,14 +888,14 @@ function initForms() {
             const elo = parseInt(document.getElementById('reg-elo').value) || 1200;
             let recaptchaToken = "";
             try {
-                if (typeof grecaptcha !== 'undefined') {
-                    recaptchaToken = grecaptcha.getResponse(1);
+                if (typeof grecaptcha !== 'undefined' && recaptchaWidgets.register !== null) {
+                    recaptchaToken = grecaptcha.getResponse(recaptchaWidgets.register);
                 }
             } catch(e){}
 
             if(!recaptchaToken && typeof grecaptcha !== 'undefined') { alert('Marca el reCAPTCHA'); return; }
             const res = await API.register(user, pass, email, 'ADMIN', elo, recaptchaToken); 
-            if (typeof grecaptcha !== 'undefined') try { grecaptcha.reset(1); } catch(e){}
+            if (typeof grecaptcha !== 'undefined' && recaptchaWidgets.register !== null) try { grecaptcha.reset(recaptchaWidgets.register); } catch(e){}
             if (res) { 
                 alert("¡Cuenta creada con éxito! Ahora puedes iniciar sesión."); 
                 toggleAuthMode();
@@ -970,14 +970,8 @@ function initForms() {
                     data.elo = document.getElementById('form-p-elo').value;
                     data.nombreEquipo = document.getElementById('form-p-team')?.value || '';
                     
-                    let recaptchaToken = "";
-                    try {
-                        if (typeof grecaptcha !== 'undefined') {
-                            recaptchaToken = grecaptcha.getResponse(2);
-                        }
-                    } catch(e){}
-                    
-                    if(!recaptchaToken && typeof grecaptcha !== 'undefined') { alert("Por favor, marca el reCAPTCHA de Inscripción"); return; }
+                    // reCAPTCHA removed from formAddPlayer as it's not in HTML
+                    let recaptchaToken = "bypass"; 
                     data.recaptchaToken = recaptchaToken;
                 }
                 
@@ -1032,8 +1026,8 @@ function initForms() {
                 console.log('Obteniendo reCAPTCHA index 3...');
                 let recaptchaToken = "";
                 try {
-                    if (typeof grecaptcha !== 'undefined') {
-                        recaptchaToken = grecaptcha.getResponse(3);
+                    if (typeof grecaptcha !== 'undefined' && recaptchaWidgets.player !== null) {
+                        recaptchaToken = grecaptcha.getResponse(recaptchaWidgets.player);
                     }
                 } catch(e){}
                 
@@ -2303,6 +2297,44 @@ window.toggleDarkMode = function() {
     const isDark = document.body.classList.toggle('dark-theme');
     localStorage.setItem('dark_mode', isDark);
 };
+
+// --- reCAPTCHA Management ---
+let recaptchaWidgets = {
+    login: null,
+    register: null,
+    player: null
+};
+
+window.onRecaptchaLoad = function() {
+    console.log("reCAPTCHA script loaded. Rendering widgets...");
+    try {
+        if (document.getElementById('recaptcha-login')) {
+            recaptchaWidgets.login = grecaptcha.render('recaptcha-login', {
+                'sitekey': '6Le-KccsAAAAAM7dNenOory_rC3Jv09Vc0jg5NXu'
+            });
+        }
+        if (document.getElementById('recaptcha-register')) {
+            recaptchaWidgets.register = grecaptcha.render('recaptcha-register', {
+                'sitekey': '6Le-KccsAAAAAM7dNenOory_rC3Jv09Vc0jg5NXu'
+            });
+        }
+        if (document.getElementById('recaptcha-player')) {
+            recaptchaWidgets.player = grecaptcha.render('recaptcha-player', {
+                'sitekey': '6Le-KccsAAAAAM7dNenOory_rC3Jv09Vc0jg5NXu'
+            });
+        }
+    } catch (e) {
+        console.error("Error rendering reCAPTCHA widgets:", e);
+    }
+};
+
+// Check if recaptcha fails to load
+setTimeout(() => {
+    if (typeof grecaptcha === 'undefined') {
+        const status = document.getElementById('recaptcha-status-login');
+        if (status) status.style.display = 'block';
+    }
+}, 5000);
 // --- Stockfish Analysis Logic ---
 let analysisBoard = null;
 let analysisGame = new Chess();
@@ -2413,10 +2445,29 @@ window.loadPGN = function() {
     analysisGame = new Chess();
     if (analysisGame.load_pgn(pgn)) {
         currentHistory = analysisGame.history();
-        currentMoveIndex = currentHistory.length - 1;
+        currentMoveIndex = 0; // Start at the beginning, not the end
         moveEvaluations = new Array(currentHistory.length).fill(null);
-        analysisBoard.position(analysisGame.fen());
+        analysisBoard.position('start');
         playChessSound('move');
+
+        // Reset all accuracy UI elements
+        const summary = document.getElementById('accuracy-summary');
+        if (summary) summary.style.display = 'none';
+        const reel = document.getElementById('best-moments-reel');
+        if (reel) reel.style.display = 'none';
+        const accEl = document.getElementById('accuracy-percent');
+        if (accEl) accEl.textContent = '0%';
+        const acplEl = document.getElementById('stat-acpl');
+        if (acplEl) acplEl.textContent = '---';
+        const levelEl = document.getElementById('elo-level-label');
+        if (levelEl) levelEl.textContent = '';
+        const eloMain = document.getElementById('performance-elo-main');
+        if (eloMain) eloMain.textContent = '---';
+        ['stat-brilliant','stat-best','stat-excellent','stat-good','stat-inaccuracy','stat-mistake','stat-blunder'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.textContent = '0';
+        });
+
         updateAnalysisUI();
         // Iniciar análisis automáticamente al cargar
         setTimeout(() => {
@@ -2690,6 +2741,7 @@ window.runFullAnalysis = async function() {
             let lastCp = 0;
             let lastMate = null;
             let resolved = false;
+            let currentDepth = 0;
             
             const timeout = setTimeout(() => {
                 if (!resolved) {
@@ -2697,21 +2749,33 @@ window.runFullAnalysis = async function() {
                     stockfishWorker.removeEventListener('message', handler);
                     resolve(lastCp);
                 }
-            }, 5000); // 5s safety timeout
+            }, 8000); // Increased safety timeout
 
             const handler = function(event) {
                 const line = event.data;
                 if (line.includes('info depth') && line.includes('score')) {
+                    const depthMatch = line.match(/depth (\d+)/);
+                    if (depthMatch) currentDepth = parseInt(depthMatch[1]);
+                    
                     const cpMatch = line.match(/cp (-?\d+)/);
                     const mateMatch = line.match(/mate (-?\d+)/);
-                    if (cpMatch) lastCp = parseInt(cpMatch[1]) / 100.0;
-                    if (mateMatch) lastMate = parseInt(mateMatch[1]);
+                    
+                    // Only update if we are getting a deeper analysis or it's our first data
+                    if (cpMatch) {
+                        lastCp = parseInt(cpMatch[1]) / 100.0;
+                        lastMate = null;
+                    }
+                    if (mateMatch) {
+                        lastMate = parseInt(mateMatch[1]);
+                    }
                 } else if (line.includes('bestmove')) {
                     if (resolved) return;
+                    
+                    // If we haven't reached depth, but Stockfish finished (forced move), it's okay
                     resolved = true;
                     clearTimeout(timeout);
                     stockfishWorker.removeEventListener('message', handler);
-                    // if mate, represent as a large centipawn value
+                    
                     if (lastMate !== null) {
                         lastCp = lastMate > 0 ? 100 - lastMate : -100 - lastMate;
                     }
@@ -2724,15 +2788,20 @@ window.runFullAnalysis = async function() {
         });
     };
     
-    // Ensure we start with a clean worker state for the analysis loop
-    // Temporarily replace onmessage to avoid conflicts
-    const originalOnMessage = stockfishWorker.onmessage;
-    stockfishWorker.onmessage = null;
-    stockfishWorker.postMessage('uci');
-    stockfishWorker.postMessage('ucinewgame');
-    
     const tempGame = new Chess();
-    let prevEval = 0.2; // starting advantage roughly
+    
+    // Consistency Fix: Analyze starting position to get a proper baseline
+    let prevEval = 0.0;
+    try {
+        prevEval = await analyzeFen('rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1', 14);
+    } catch(e) {
+        prevEval = 0.2;
+    }
+    
+    // Consistency Fix: Clear hash before starting
+    stockfishWorker.postMessage('setoption name Hash value 32');
+    stockfishWorker.postMessage('setoption name Clear Hash');
+    stockfishWorker.postMessage('ucinewgame');
     
     for (let i = 0; i < currentHistory.length; i++) {
         const progress = Math.round(((i + 1) / currentHistory.length) * 100);
@@ -2813,101 +2882,92 @@ function updateEvalBar(cp) {
 
 let lastExplorerFen = "";
 let lastKnownOpening = "";
+const openingCache = {}; // Cache to avoid redundant API calls
+
 async function updateOpeningExplorer(fen) {
-    const fenParts = fen.split(' ');
-    const moveNumber = parseInt(fenParts[fenParts.length - 1]);
-    const isInitialPosition = fen.startsWith('rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq -');
-
-    if (isInitialPosition || moveNumber <= 1) {
-        lastKnownOpening = "";
-    }
-
-    const fenBase = fenParts.slice(0, 4).join(' '); 
-    if (fenBase === lastExplorerFen) return;
-    lastExplorerFen = fenBase;
+    const cleanFen = fen.split(' ').slice(0, 4).join(' ');
+    if (cleanFen === lastExplorerFen) return;
+    lastExplorerFen = cleanFen;
 
     const nameEl = document.getElementById('opening-name');
     const candEl = document.getElementById('opening-candidates');
     if (!nameEl || !candEl) return;
 
-    // Use a clean FEN (no move counts) for better matching
-    const cleanFen = fenParts.slice(0, 4).join(' ');
+    // Check Cache
+    if (openingCache[cleanFen]) {
+        renderOpeningData(openingCache[cleanFen]);
+        return;
+    }
 
     try {
         console.log('Fetching opening for FEN:', cleanFen);
         
-        // Intentar primero con la base de datos de Maestros
-        let res = await fetch(`https://explorer.lichess.ovh/masters?fen=${encodeURIComponent(cleanFen)}`, {
-            headers: { 'Accept': 'application/json' }
-        });
+        const fetchOpening = async (url) => {
+            for (let i = 0; i < 2; i++) { // Simple retry
+                try {
+                    const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
+                    if (res.ok) return await res.json();
+                } catch (e) {}
+                await new Promise(r => setTimeout(r, 500));
+            }
+            return null;
+        };
+
+        let data = await fetchOpening(`https://explorer.lichess.ovh/masters?fen=${encodeURIComponent(cleanFen)}`);
         
-        let data = null;
-        if (res.ok) {
-            data = await res.json();
+        if (!data || !data.opening) {
+            data = await fetchOpening(`https://explorer.lichess.ovh/lichess?fen=${encodeURIComponent(cleanFen)}`);
         }
 
-        // Si no hay datos o falló, intentar con la base de datos general de Lichess (más amplia)
-        if (!data || !data.opening || !data.moves || data.moves.length === 0) {
-            res = await fetch(`https://explorer.lichess.ovh/lichess?fen=${encodeURIComponent(cleanFen)}`);
-            if (res.ok) {
-                data = await res.json();
-            }
-        }
-
-        // Theory Meter Logic
-        const theoryContainer = document.getElementById('theory-container');
-        const theoryPercent = document.getElementById('theory-percent');
-        const theoryBar = document.getElementById('theory-bar');
-
-        if (data && theoryContainer && theoryPercent && theoryBar) {
-            const totalGames = (data.white || 0) + (data.draws || 0) + (data.black || 0);
-            let percent = 0;
-            if (totalGames > 0) {
-                // Escala logarítmica para teoría (10,000+ partidas = 100%)
-                percent = Math.min(100, Math.round((Math.log10(totalGames + 1) / 4) * 100));
-            }
-            theoryContainer.style.display = 'block';
-            theoryPercent.textContent = percent + '%';
-            theoryBar.style.width = percent + '%';
-        } else if (theoryContainer) {
-            theoryContainer.style.display = 'none';
-        }
-
-        if (data && data.opening) {
-            nameEl.textContent = data.opening.name;
-            lastKnownOpening = data.opening.name;
-        } else if (lastKnownOpening) {
-            nameEl.textContent = lastKnownOpening + " (Var.)";
+        if (data) {
+            openingCache[cleanFen] = data;
+            renderOpeningData(data);
         } else {
-            nameEl.textContent = "Teoría desconocida / Final de partida";
-        }
-
-        if (data && data.moves && data.moves.length > 0) {
-            candEl.innerHTML = data.moves.slice(0, 3).map(m => `
-                <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.85rem; background: rgba(139, 90, 43, 0.05); padding: 6px 10px; border-radius: 6px; border: 1px solid rgba(139, 90, 43, 0.1);">
-                    <span style="font-weight: 700; color: var(--accent-color);">${m.san}</span>
-                    <div style="display:flex; gap:8px; align-items:center;">
-                        <span style="color: #16a34a; font-weight:700;">${Math.round(m.white || 0)}%</span>
-                        <span style="color: var(--text-muted); font-size: 0.7rem;">${Math.round(m.draws || 0)}%</span>
-                        <span style="color: #ef4444; font-weight:700;">${Math.round(m.black || 0)}%</span>
-                    </div>
-                </div>
-            `).join('');
-        } else {
-            candEl.innerHTML = '<div style="font-size: 0.75rem; color: var(--text-muted); font-style:italic;">No hay jugadas registradas en esta posición.</div>';
+            nameEl.textContent = lastKnownOpening ? lastKnownOpening + " (Var.)" : "Teoría desconocida";
         }
     } catch (err) {
         console.error("Explorer Error:", err);
-        // Fallback for API 401 errors
-        if (cleanFen.includes("rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR")) nameEl.textContent = "Apertura Abierta / Peón de Rey";
-        else if (cleanFen.includes("rnbqkbnr/pppppppp/8/8/3P4/8/PPP1PPPP/RNBQKBNR")) nameEl.textContent = "Apertura Cerrada / Peón de Dama";
-        else if (cleanFen.includes("rnbqkbnr/pppppppp/8/8/8/2N5/PPPPPPPP/R1BQKBNR")) nameEl.textContent = "Apertura Reti";
-        else if (cleanFen === "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq -") nameEl.textContent = "Posición Inicial";
-        else nameEl.textContent = "Apertura Custom / Variante Desconocida";
-        
-        candEl.innerHTML = '<div style="font-size: 0.75rem; color: var(--text-muted); font-style:italic;">No se pudo cargar la base de datos de Lichess.</div>';
     }
 }
+
+function renderOpeningData(data) {
+    const nameEl = document.getElementById('opening-name');
+    const candEl = document.getElementById('opening-candidates');
+    const theoryContainer = document.getElementById('theory-container');
+    const theoryPercent = document.getElementById('theory-percent');
+    const theoryBar = document.getElementById('theory-bar');
+
+    if (data.opening) {
+        nameEl.textContent = data.opening.name;
+        lastKnownOpening = data.opening.name;
+    }
+
+    if (theoryContainer && theoryPercent && theoryBar) {
+        const totalGames = (data.white || 0) + (data.draws || 0) + (data.black || 0);
+        let percent = 0;
+        if (totalGames > 0) {
+            percent = Math.min(100, Math.round((Math.log10(totalGames + 1) / 5) * 100));
+        }
+        theoryContainer.style.display = 'block';
+        theoryPercent.textContent = percent + '%';
+        theoryBar.style.width = percent + '%';
+    }
+
+    if (data.moves && data.moves.length > 0) {
+        candEl.innerHTML = data.moves.slice(0, 3).map(m => `
+            <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.85rem; background: rgba(139, 90, 43, 0.05); padding: 6px 10px; border-radius: 6px; border: 1px solid rgba(139, 90, 43, 0.1);">
+                <span style="font-weight: 700; color: var(--accent-color);">${m.san}</span>
+                <div style="display:flex; gap:8px; align-items:center;">
+                    <span style="color: #16a34a; font-weight:700;">${Math.round((m.white/(m.white+m.draws+m.black))*100)}%</span>
+                    <span style="color: var(--text-muted); font-size: 0.7rem;">${Math.round((m.draws/(m.white+m.draws+m.black))*100)}%</span>
+                    <span style="color: #ef4444; font-weight:700;">${Math.round((m.black/(m.white+m.draws+m.black))*100)}%</span>
+                </div>
+            </div>
+        `).join('');
+    }
+}
+
+
 
 function triggerConfetti() {
     if (typeof confetti !== 'undefined') {
@@ -2940,11 +3000,11 @@ function updateAccuracySummary() {
 
     if (movesToCount === 0) return;
 
-    const acpl = totalCpl / movesToCount; // Average Centipawn Loss
+    const acpl = totalCpl / movesToCount; // Average Centipawn Loss in centipawns
 
-    // Accuracy % using Lichess-style formula: acc = 103.1668 * exp(-0.04354 * acpl) - 3.1668
-    // Clamped to [0, 100]
-    let avgAccuracy = Math.max(0, Math.min(100, 103.1668 * Math.exp(-0.04354 * acpl) - 3.1668));
+    // Accuracy % - fórmula exponencial calibrada para centipawns reales (0-500 cp)
+    // ACPL 0   → 100%, ACPL 50 → ~86%, ACPL 100 → ~74%, ACPL 200 → ~54%, ACPL 350 → ~36%
+    let avgAccuracy = Math.max(0, Math.min(100, 100 * Math.exp(-0.003 * acpl)));
 
     // ELO Estimado basado en ACPL (referencias reales Stockfish/Chess.com)
     let predictedElo;

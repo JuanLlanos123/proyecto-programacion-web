@@ -13,7 +13,7 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="css/styles.css">
     <!-- Google reCAPTCHA v2 -->
-    <script src="https://www.google.com/recaptcha/api.js" async defer></script>
+    <script src="https://www.google.com/recaptcha/api.js?onload=onRecaptchaLoad&render=explicit" async defer></script>
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
     <!-- WebSockets -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/sockjs-client/1.6.1/sockjs.min.js"></script>
@@ -82,8 +82,11 @@
                             onclick="togglePassword('login-pass')">&#128065;</button>
                     </div>
                 </div>
-                <div class="g-recaptcha" data-sitekey="6Le-KccsAAAAAM7dNenOory_rC3Jv09Vc0jg5NXu"
+                <div id="recaptcha-login" class="g-recaptcha" data-sitekey="6Le-KccsAAAAAM7dNenOory_rC3Jv09Vc0jg5NXu"
                     style="margin-bottom:1rem; display:flex; justify-content:center;"></div>
+                <div id="recaptcha-status-login" style="font-size: 0.75rem; color: #ef4444; margin-bottom: 1rem; display:none; text-align:center;">
+                    Error de conexión con reCAPTCHA. <a href="javascript:location.reload()" style="color: #8b5a2b; text-decoration: underline;">Reintentar</a>
+                </div>
                 <button type="submit" class="btn"
                     style="width:100%; justify-content:center; padding:1rem; background:#8b5a2b; color:white; border:none; border-radius:4px; font-weight:bold; cursor:pointer;">Entrar</button>
             </form>
@@ -117,7 +120,7 @@
                         style="width:100%; padding:0.75rem; border:1px solid #c8a98c; border-radius:4px; background:#fffbf7; color:#333;"
                         placeholder="1200">
                 </div>
-                <div class="g-recaptcha" data-sitekey="6Le-KccsAAAAAM7dNenOory_rC3Jv09Vc0jg5NXu"
+                <div id="recaptcha-register" class="g-recaptcha" data-sitekey="6Le-KccsAAAAAM7dNenOory_rC3Jv09Vc0jg5NXu"
                     style="margin-bottom:1rem; display:flex; justify-content:center;"></div>
                 <!-- Roles hidden for simplicity as requested -->
                 <input type="hidden" id="reg-role" value="ADMIN">
@@ -1180,7 +1183,7 @@
                     <label>ELO FIDE</label>
                     <input type="number" class="form-control" id="create-p-elo" placeholder="Ej: 1200">
                 </div>
-                <div class="g-recaptcha" data-sitekey="6Le-KccsAAAAAM7dNenOory_rC3Jv09Vc0jg5NXu"
+                <div id="recaptcha-player" class="g-recaptcha" data-sitekey="6Le-KccsAAAAAM7dNenOory_rC3Jv09Vc0jg5NXu"
                     style="margin-bottom:1rem; display:flex; justify-content:center;"></div>
                 <button type="submit" class="btn btn-primary" style="width: 100%; justify-content: center;">Crear
                     Jugador</button>
