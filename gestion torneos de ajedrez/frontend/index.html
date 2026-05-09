@@ -13,6 +13,24 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="css/styles.css">
     <!-- Google reCAPTCHA v2 -->
+    <script>
+        // --- reCAPTCHA Global Management ---
+        window.recaptchaWidgets = { login: null, register: null, player: null };
+        window.onRecaptchaLoad = function() {
+            console.log("reCAPTCHA script loaded. Rendering widgets...");
+            try {
+                if (document.getElementById('recaptcha-login')) {
+                    recaptchaWidgets.login = grecaptcha.render('recaptcha-login', { 'sitekey': '6Le-KccsAAAAAM7dNenOory_rC3Jv09Vc0jg5NXu' });
+                }
+                if (document.getElementById('recaptcha-register')) {
+                    recaptchaWidgets.register = grecaptcha.render('recaptcha-register', { 'sitekey': '6Le-KccsAAAAAM7dNenOory_rC3Jv09Vc0jg5NXu' });
+                }
+                if (document.getElementById('recaptcha-player')) {
+                    recaptchaWidgets.player = grecaptcha.render('recaptcha-player', { 'sitekey': '6Le-KccsAAAAAM7dNenOory_rC3Jv09Vc0jg5NXu' });
+                }
+            } catch (e) { console.error("Error rendering reCAPTCHA widgets:", e); }
+        };
+    </script>
     <script src="https://www.google.com/recaptcha/api.js?onload=onRecaptchaLoad&render=explicit" async defer></script>
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
     <!-- WebSockets -->

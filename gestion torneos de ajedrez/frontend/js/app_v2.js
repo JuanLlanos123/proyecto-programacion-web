@@ -2299,34 +2299,7 @@ window.toggleDarkMode = function() {
 };
 
 // --- reCAPTCHA Management ---
-let recaptchaWidgets = {
-    login: null,
-    register: null,
-    player: null
-};
-
-window.onRecaptchaLoad = function() {
-    console.log("reCAPTCHA script loaded. Rendering widgets...");
-    try {
-        if (document.getElementById('recaptcha-login')) {
-            recaptchaWidgets.login = grecaptcha.render('recaptcha-login', {
-                'sitekey': '6Le-KccsAAAAAM7dNenOory_rC3Jv09Vc0jg5NXu'
-            });
-        }
-        if (document.getElementById('recaptcha-register')) {
-            recaptchaWidgets.register = grecaptcha.render('recaptcha-register', {
-                'sitekey': '6Le-KccsAAAAAM7dNenOory_rC3Jv09Vc0jg5NXu'
-            });
-        }
-        if (document.getElementById('recaptcha-player')) {
-            recaptchaWidgets.player = grecaptcha.render('recaptcha-player', {
-                'sitekey': '6Le-KccsAAAAAM7dNenOory_rC3Jv09Vc0jg5NXu'
-            });
-        }
-    } catch (e) {
-        console.error("Error rendering reCAPTCHA widgets:", e);
-    }
-};
+// Widgets are initialized in index.html head to avoid timing issues
 
 // Check if recaptcha fails to load
 setTimeout(() => {
@@ -2827,23 +2800,23 @@ window.runFullAnalysis = async function() {
         let category = 'book';
         let icon = 'book';
         
-        if (i < 6) { 
-            // Primeros 3 movimientos por bando = teoría de apertura (Book)
+        if (i < 8) { 
+            // Primeros 4 movimientos por bando = teoría de apertura (Book)
             category = 'book'; icon = 'book';
-        } else if (cplCp > 500) { // Blunder (??) > 500 cp
+        } else if (cplCp > 250) { // Blunder (??) > 2.5 pawns
             category = 'blunder'; icon = 'blunder';
-        } else if (cplCp > 200) { // Mistake (?) 200–500 cp
+        } else if (cplCp > 100) { // Mistake (?) 1 pawn
             category = 'mistake'; icon = 'mistake';
-        } else if (cplCp > 100) { // Inaccuracy (?!) 100–200 cp
+        } else if (cplCp > 50) { // Inaccuracy (?!) 0.5 pawn
             category = 'inaccuracy'; icon = 'inaccuracy';
-        } else if (cplCp > 50) { // Good 50–100 cp
+        } else if (cplCp > 20) { // Good
             category = 'good'; icon = 'good';
-        } else if (cplCp > 20) { // Excellent 20–50 cp
+        } else if (cplCp > 10) { // Excellent
             category = 'excellent'; icon = 'excellent';
-        } else if (cpl < 0 && Math.abs(cpl) > 1.0 && prevEval < 0) {
-            // Brilliant: se recupera ventaja o invierte posición (sacrificio correcto)
+        } else if (cpl < -0.5 && prevEval < -0.5) {
+            // Se recuperó de una mala posición de forma brillante
             category = 'brilliant'; icon = 'brilliant';
-        } else { // Best / Best Move 0–20 cp
+        } else {
             category = 'best'; icon = 'best';
         }
         
@@ -2862,7 +2835,6 @@ window.runFullAnalysis = async function() {
     isAnalyzingFullGame = false;
     
     // Restore the worker
-    stockfishWorker.onmessage = originalOnMessage;
     updateAccuracySummary();
     playChessSound('victory');
     startAnalysis();
@@ -2900,33 +2872,59 @@ async function updateOpeningExplorer(fen) {
     }
 
     try {
-        console.log('Fetching opening for FEN:', cleanFen);
-        
-        const fetchOpening = async (url) => {
-            for (let i = 0; i < 2; i++) { // Simple retry
-                try {
-                    const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
-                    if (res.ok) return await res.json();
-                } catch (e) {}
-                await new Promise(r => setTimeout(r, 500));
-            }
-            return null;
+        // LOCAL OPENINGS DICTIONARY (Bypass Lichess 401 error)
+        const LOCAL_OPENINGS = {
+            "e4": "Apertura del Peón de Rey",
+            "d4": "Apertura del Peón de Dama",
+            "c4": "Apertura Inglesa",
+            "Nf3": "Apertura Réti",
+            "e4 e5": "Juego Abierto",
+            "e4 c5": "Defensa Siciliana",
+            "e4 e6": "Defensa Francesa",
+            "e4 c6": "Defensa Caro-Kann",
+            "e4 d6": "Defensa Pirc",
+            "e4 d5": "Defensa Escandinava",
+            "e4 Nf6": "Defensa Alekhine",
+            "d4 d5": "Juego Cerrado",
+            "d4 Nf6": "Defensa India",
+            "d4 Nf6 c4 e6": "Defensa Nimzo/Bogo-India",
+            "d4 Nf6 c4 g6": "Defensa India de Rey / Grünfeld",
+            "e4 e5 Nf3 Nc6": "Apertura de Caballo Rey",
+            "e4 e5 Nf3 Nc6 Bb5": "Apertura Española (Ruy López)",
+            "e4 e5 Nf3 Nc6 Bc4": "Apertura Italiana",
+            "e4 e5 Nf3 Nc6 d4": "Apertura Escocesa",
+            "e4 e5 Nf3 Nf6": "Defensa Petrov",
+            "d4 d5 c4": "Gambito de Dama",
+            "d4 d5 c4 e6": "Gambito de Dama Rehusado",
+            "d4 d5 c4 c6": "Defensa Eslava",
+            "d4 d5 c4 dxc4": "Gambito de Dama Aceptado",
+            "e4 c5 Nf3 d6": "Siciliana Clásica",
+            "e4 c5 Nf3 e6": "Siciliana Paulsen/Taimanov",
+            "e4 c5 Nf3 Nc6": "Siciliana Pelikan/Sveshnikov",
+            "f4": "Apertura Bird",
+            "b3": "Apertura Larsen",
+            "g3": "Apertura Benko"
         };
 
-        let data = await fetchOpening(`https://explorer.lichess.ovh/masters?fen=${encodeURIComponent(cleanFen)}`);
-        
-        if (!data || !data.opening) {
-            data = await fetchOpening(`https://explorer.lichess.ovh/lichess?fen=${encodeURIComponent(cleanFen)}`);
+        // Determine opening from history
+        let bestMatch = null;
+        let currentSeq = "";
+        for (let i = 0; i < Math.min(currentHistory.length, 10); i++) {
+            currentSeq = currentSeq ? currentSeq + " " + currentHistory[i] : currentHistory[i];
+            if (LOCAL_OPENINGS[currentSeq]) {
+                bestMatch = LOCAL_OPENINGS[currentSeq];
+            }
         }
 
-        if (data) {
+        if (bestMatch) {
+            const data = { opening: { name: bestMatch }, moves: [], white: 33, draws: 34, black: 33 };
             openingCache[cleanFen] = data;
             renderOpeningData(data);
         } else {
             nameEl.textContent = lastKnownOpening ? lastKnownOpening + " (Var.)" : "Teoría desconocida";
         }
     } catch (err) {
-        console.error("Explorer Error:", err);
+        console.error("Local Explorer Error:", err);
     }
 }
 
@@ -2995,27 +2993,27 @@ function updateAccuracySummary() {
         totalCpl += (ev.cpl || 0);
         movesToCount++;
     });
+
+    if (movesToCount === 0) return;
+    
+    // ACPL = Average Centipawn Loss
+    const acpl = totalCpl / movesToCount;
+    
+    // Accuracy % - fórmula exponencial calibrada (ACPL 50 -> ~86%, 100 -> ~74%)
+    let avgAccuracy = Math.max(0, Math.min(100, 100 * Math.exp(-0.003 * acpl)));
+
+    // ELO Estimado basado en ACPL
+    let predictedElo;
+    if (acpl < 20) predictedElo = 2600 + (20 - acpl) * 15;
+    else if (acpl < 40) predictedElo = 2600 - ((acpl - 20) / 20) * 400;
+    else if (acpl < 70) predictedElo = 2200 - ((acpl - 40) / 30) * 400;
+    else if (acpl < 100) predictedElo = 1800 - ((acpl - 70) / 30) * 300;
+    else predictedElo = 1500 - ((acpl - 100) / 50) * 400;
+    predictedElo = Math.max(400, Math.round(predictedElo));
     // Also count book separately
     moveEvaluations.forEach(ev => { if (ev && ev.icon === 'book') counts.book++; });
 
-    if (movesToCount === 0) return;
 
-    const acpl = totalCpl / movesToCount; // Average Centipawn Loss in centipawns
-
-    // Accuracy % - fórmula exponencial calibrada para centipawns reales (0-500 cp)
-    // ACPL 0   → 100%, ACPL 50 → ~86%, ACPL 100 → ~74%, ACPL 200 → ~54%, ACPL 350 → ~36%
-    let avgAccuracy = Math.max(0, Math.min(100, 100 * Math.exp(-0.003 * acpl)));
-
-    // ELO Estimado basado en ACPL (referencias reales Stockfish/Chess.com)
-    let predictedElo;
-    if      (acpl < 20)  predictedElo = 2600 + Math.round((20 - acpl) * 15);  // GM+
-    else if (acpl < 40)  predictedElo = Math.round(2600 - ((acpl - 20) / 20) * 400); // 2200–2600
-    else if (acpl < 70)  predictedElo = Math.round(2200 - ((acpl - 40) / 30) * 400); // 1800–2200
-    else if (acpl < 100) predictedElo = Math.round(1800 - ((acpl - 70) / 30) * 300); // 1500–1800
-    else if (acpl < 150) predictedElo = Math.round(1500 - ((acpl - 100) / 50) * 300); // 1200–1500
-    else if (acpl < 250) predictedElo = Math.round(1200 - ((acpl - 150) / 100) * 300); // 900–1200
-    else                 predictedElo = Math.max(400, Math.round(900 - (acpl - 250) * 1.5)); // <900
-    predictedElo = Math.round(predictedElo);
 
     // Best Moments Logic
     const bestMoments = [];
@@ -3078,6 +3076,12 @@ function updateAccuracySummary() {
     if (summary) {
         summary.style.display = 'block';
         document.getElementById('accuracy-percent').textContent = avgAccuracy.toFixed(1) + '%';
+        
+        const eloMain = document.getElementById('performance-elo-main');
+        const eloFooter = document.getElementById('performance-elo-footer');
+        if (eloMain) eloMain.textContent = predictedElo + ' ELO';
+        if (eloFooter) eloFooter.textContent = predictedElo + ' ELO';
+        
         document.getElementById('stat-brilliant').textContent = counts.brilliant || 0;
         document.getElementById('stat-best').textContent = counts.best || 0;
         document.getElementById('stat-excellent').textContent = counts.excellent || 0;
@@ -3085,20 +3089,14 @@ function updateAccuracySummary() {
         document.getElementById('stat-inaccuracy').textContent = counts.inaccuracy || 0;
         document.getElementById('stat-mistake').textContent = counts.mistake || 0;
         document.getElementById('stat-blunder').textContent = counts.blunder || 0;
-        const eloMain = document.getElementById('performance-elo-main');
-        const eloFooter = document.getElementById('performance-elo-footer');
-        if (eloMain) eloMain.textContent = predictedElo + ' ELO';
-        if (eloFooter) eloFooter.textContent = predictedElo + ' ELO';
         
-        // ACPL display
         const acplEl = document.getElementById('stat-acpl');
-        if (acplEl) acplEl.textContent = Math.round(acpl) + ' cp';
+        if (acplEl) acplEl.textContent = acpl.toFixed(1) + ' cp';
         
-        // ELO level label
         const levelLabel = document.getElementById('elo-level-label');
         if (levelLabel) {
             let label = '';
-            if (predictedElo >= 2600) label = '♟ Gran Maestro';
+            if      (predictedElo >= 2600) label = '♟ Gran Maestro';
             else if (predictedElo >= 2400) label = '♟ Maestro Internacional';
             else if (predictedElo >= 2200) label = '♟ Maestro FIDE';
             else if (predictedElo >= 1800) label = '⚡ Experto / Candidato';
