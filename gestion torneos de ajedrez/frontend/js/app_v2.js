@@ -1098,36 +1098,35 @@ async function renderDashboard() {
             const teams = {};
             users.forEach(u => {
                 if (u.role === 'ADMIN') return;
-                const teamName = u.nombreEquipo || 'Sin Equipo';
-                if (!teams[teamName]) teams[teamName] = { name: teamName, members: 0, eloSum: 0, ptsSum: 0 };
-                teams[teamName].members++;
-                teams[teamName].eloSum += u.eloRating || 0;
-            });
-
-            // We need points too, but points are in inscriptions. 
-            // For a global ranking, maybe just based on ELO or active tournament points?
-            // User said "la clasificacion era en el dashboard". 
-            // I'll use the ELO average and member count for now, or fetch all inscriptions if possible.
-            // Let's stick to ELO and member count for "Global" ranking if we don't have global points.
-            // Actually, I can fetch all inscriptions for all tournaments? No, too slow.
+            // Global team ranking from backend
+            let equiposList = await API.getEquipos();
             
-            const teamArray = Object.values(teams)
-                .filter(t => t.name !== 'Sin Equipo')
-                .sort((a, b) => (b.eloSum / b.members) - (a.eloSum / a.members));
+            // Map member counts from users and sort by accumulated points
+            let teamsData = equiposList.map(eq => {
+                let membersCount = usuarios.filter(u => u.equipo && u.equipo.id === eq.id).length;
+                let eloSum = usuarios.filter(u => u.equipo && u.equipo.id === eq.id).reduce((sum, u) => sum + (u.eloRating || 0), 0);
+                let avgElo = membersCount > 0 ? Math.round(eloSum / membersCount) : 0;
+                return {
+                    id: eq.id,
+                    name: eq.nombre,
+                    members: membersCount,
+                    avgElo: avgElo,
+                    points: eq.puntosAcumulados || 0
+                };
+            }).filter(t => t.members > 0).sort((a, b) => b.points - a.points || b.avgElo - a.avgElo);
 
-            if (teamArray.length === 0) {
+            if (teamsData.length === 0) {
                 teamRankingBody.innerHTML = '<tr><td colspan="5" style="text-align:center;">No hay equipos registrados aún.</td></tr>';
             } else {
-                teamRankingBody.innerHTML = teamArray.map((t, i) => {
-                    const avgElo = Math.round(t.eloSum / t.members);
+                teamRankingBody.innerHTML = teamsData.map((t, i) => {
                     let pos = `#${i+1}`;
                     if(i === 0) pos = '🥇';
                     return `<tr>
                         <td>${pos}</td>
                         <td><strong style="color:var(--accent-color);">${t.name}</strong></td>
                         <td>${t.members}</td>
-                        <td>---</td>
-                        <td><strong>${avgElo}</strong></td>
+                        <td style="color:var(--win-color); font-weight:bold;">${t.points}</td>
+                        <td><strong>${t.avgElo}</strong></td>
                     </tr>`;
                 }).join('');
             }

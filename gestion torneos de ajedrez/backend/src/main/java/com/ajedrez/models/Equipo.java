@@ -21,6 +21,9 @@ public class Equipo {
     @JsonIgnore
     private List<Usuario> miembros;
 
+    @Column(name = "puntos_acumulados")
+    private Double puntosAcumulados = 0.0;
+
     public Equipo() {}
     public Equipo(String nombre) { this.nombre = nombre; }
 
@@ -34,4 +37,6 @@ public class Equipo {
     public void setDescripcion(String descripcion) { this.descripcion = descripcion; }
     public List<Usuario> getMiembros() { return miembros; }
     public void setMiembros(List<Usuario> miembros) { this.miembros = miembros; }
+    public Double getPuntosAcumulados() { return puntosAcumulados; }
+    public void setPuntosAcumulados(Double puntosAcumulados) { this.puntosAcumulados = puntosAcumulados; }
 }

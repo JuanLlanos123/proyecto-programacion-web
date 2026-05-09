@@ -221,7 +221,30 @@ const API = {
         }
     },
 
-    // --- GESTIÓN DE USUARIOS ---
+    // --- GESTIÓN DE USUARIOS Y EQUIPOS ---
+
+    async getEquipos() {
+        try {
+            const response = await fetchWithAuth(`${API_BASE}/equipos`);
+            if(response.ok) return await response.json();
+            return [];
+        } catch (error) {
+            console.error("Error al obtener equipos:", error);
+            return [];
+        }
+    },
+
+    async removerMiembroEquipo(equipoId, usuarioId) {
+        try {
+            const response = await fetchWithAuth(`${API_BASE}/equipos/${equipoId}/miembros/${usuarioId}`, {
+                method: 'DELETE'
+            });
+            return response.ok;
+        } catch (error) {
+            console.error("Error al remover miembro:", error);
+            return false;
+        }
+    },
 
     /** Obtiene la lista de todos los usuarios del sistema */
     async getUsuarios() {

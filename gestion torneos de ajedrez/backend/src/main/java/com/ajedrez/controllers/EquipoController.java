@@ -1,8 +1,10 @@
 package com.ajedrez.controllers;
 
 import com.ajedrez.models.Equipo;
+import com.ajedrez.models.Inscripcion;
 import com.ajedrez.models.Usuario;
 import com.ajedrez.repositories.EquipoRepository;
+import com.ajedrez.repositories.InscripcionRepository;
 import com.ajedrez.repositories.UsuarioRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
@@ -22,9 +24,26 @@ public class EquipoController {
     @Autowired
     private UsuarioRepository usuarioRepository;
 
+    @Autowired
+    private InscripcionRepository inscripcionRepository;
+
     @GetMapping
     public List<Equipo> getEquipos() {
-        return equipoRepository.findAll();
+        List<Equipo> equipos = equipoRepository.findAll();
+        for (Equipo eq : equipos) {
+            double totalPts = 0;
+            if (eq.getMiembros() != null) {
+                for (Usuario u : eq.getMiembros()) {
+                    List<Inscripcion> ins = inscripcionRepository.findByUsuarioId(u.getId());
+                    for (Inscripcion i : ins) {
+                        if (i.getPuntosAcumulados() != null) totalPts += i.getPuntosAcumulados();
+                    }
+                }
+            }
+            eq.setPuntosAcumulados(totalPts);
+            equipoRepository.save(eq);
+        }
+        return equipos;
     }
 
     @PostMapping
@@ -49,6 +68,20 @@ public class EquipoController {
                 usuario.setEquipo(equipo);
                 usuarioRepository.save(usuario);
                 return ResponseEntity.ok(equipo);
+            }).orElse(ResponseEntity.notFound().build());
+        }).orElse(ResponseEntity.notFound().build());
+    }
+
+    @DeleteMapping("/{id}/miembros/{usuarioId}")
+    public ResponseEntity<?> removerMiembro(@PathVariable Long id, @PathVariable Long usuarioId) {
+        return equipoRepository.findById(id).map(equipo -> {
+            return usuarioRepository.findById(usuarioId).map(usuario -> {
+                if (usuario.getEquipo() != null && usuario.getEquipo().getId().equals(equipo.getId())) {
+                    usuario.setEquipo(null);
+                    usuarioRepository.save(usuario);
+                    return ResponseEntity.ok(equipo);
+                }
+                return ResponseEntity.badRequest().body("El usuario no pertenece a este equipo");
             }).orElse(ResponseEntity.notFound().build());
         }).orElse(ResponseEntity.notFound().build());
     }
