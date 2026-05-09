@@ -44,7 +44,7 @@ public class EmparejamientoService {
         if ("SUIZO".equals(torneo.getSistemaJuego())) {
             return generarRondaSuizo(torneo, inscripciones);
         } else if ("ELIMINATORIA".equals(torneo.getSistemaJuego())) {
-            return generarRondaEliminatoria(torneo, inscripciones);
+            return generarRondaEliminatoria(torneo, inscripciones, false);
         } else if ("DOBLE_ELIMINATORIA".equals(torneo.getSistemaJuego())) {
             return generarRondaDobleEliminatoria(torneo, inscripciones);
         } else if ("GRUPOS".equals(torneo.getSistemaJuego())) {
@@ -210,17 +210,19 @@ public class EmparejamientoService {
         return partidasGeneradas;
     }
 
-    private List<Partida> generarRondaEliminatoria(Torneo torneo, List<Inscripcion> inscripciones) {
+    private List<Partida> generarRondaEliminatoria(Torneo torneo, List<Inscripcion> inscripciones, boolean ignoreExisting) {
         List<Partida> partidasExistentes = partidaRepository.findByTorneoId(torneo.getId());
         int rondaActual = 0;
         for(Partida p : partidasExistentes) {
-            if(p.getRondaNumero() > rondaActual) rondaActual = p.getRondaNumero();
+            if(p.getRondaNumero() != null && p.getRondaNumero() > rondaActual) rondaActual = p.getRondaNumero();
         }
         int nuevaRonda = rondaActual + 1;
         List<Usuario> jugadoresParaEstaRonda = new ArrayList<>();
-        if (rondaActual == 0) {
+        
+        if (rondaActual == 0 || ignoreExisting) {
             for(Inscripcion i : inscripciones) jugadoresParaEstaRonda.add(i.getUsuario());
-            Collections.shuffle(jugadoresParaEstaRonda);
+            // No barajar si es forzado (fase de grupos a eliminatoria), para mantener cabezas de serie si se desea
+            if (!ignoreExisting) Collections.shuffle(jugadoresParaEstaRonda);
         } else {
             final int rAnt = rondaActual;
             List<Partida> rondaAnterior = new ArrayList<>();
@@ -484,13 +486,71 @@ public class EmparejamientoService {
             inscripcionRepository.saveAll(sinGrupo);
         }
 
-        // Generar Round Robin para cada grupo
+        // Verificar si la fase de grupos ya terminó (todos tienen sus partidas jugadas)
+        List<Partida> partidasExistentes = partidaRepository.findByTorneoId(torneo.getId());
+        boolean faseGruposCompleta = !partidasExistentes.isEmpty() && partidasExistentes.stream().allMatch(p -> p.getResultado() != null && !p.getResultado().equals("P"));
+
+        if (faseGruposCompleta) {
+            // Fase de grupos terminada -> Iniciar fase eliminatoria
+            // Tomar los 2 mejores de cada grupo
+            List<Inscripcion> clasificados = new ArrayList<>();
+            Map<Integer, List<Inscripcion>> grupos = inscripciones.stream()
+                    .filter(i -> i.getNumeroGrupo() != null)
+                    .collect(Collectors.groupingBy(Inscripcion::getNumeroGrupo));
+
+            // Ordenar grupos por ID para consistencia en las llaves
+            List<Integer> grupoIds = new ArrayList<>(grupos.keySet());
+            Collections.sort(grupoIds);
+
+            for (Integer gId : grupoIds) {
+                List<Inscripcion> miembros = grupos.get(gId);
+                miembros.sort((a, b) -> {
+                    if (b.getPuntosAcumulados() != a.getPuntosAcumulados())
+                        return Double.compare(b.getPuntosAcumulados(), a.getPuntosAcumulados());
+                    return Double.compare(b.getSonnebornBerger(), a.getSonnebornBerger());
+                });
+                // Asegurar que cada grupo tenga al menos 2
+                while(miembros.size() < 2) {
+                    Inscripcion fake = new Inscripcion();
+                    fake.setUsuario(null); // BYE placeholder logic handled in service
+                    miembros.add(fake);
+                }
+            }
+
+            // Cruzar grupos: A1 vs B2, B1 vs A2, C1 vs D2, D1 vs C2...
+            for (int i = 0; i < grupoIds.size(); i += 2) {
+                if (i + 1 < grupoIds.size()) {
+                    List<Inscripcion> gA = grupos.get(grupoIds.get(i));
+                    List<Inscripcion> gB = grupos.get(grupoIds.get(i + 1));
+                    // Emparejamiento 1: Primero de A vs Segundo de B
+                    clasificados.add(gA.get(0));
+                    clasificados.add(gB.get(1));
+                    // Emparejamiento 2: Primero de B vs Segundo de A
+                    clasificados.add(gB.get(0));
+                    clasificados.add(gA.get(1));
+                } else {
+                    // Si el número de grupos es impar, el último grupo se empareja internamente (o contra BYE si se prefiere)
+                    List<Inscripcion> gLast = grupos.get(grupoIds.get(i));
+                    clasificados.add(gLast.get(0));
+                    clasificados.add(gLast.get(1));
+                }
+            }
+
+            if (clasificados.size() < 2) return new ArrayList<>();
+
+            // Generar llaves eliminatorias con los clasificados forzando el inicio
+            return generarRondaEliminatoria(torneo, clasificados, true);
+        }
+
+        // Si no está completa, generar Round Robin para cada grupo (fase inicial)
         List<Partida> todasLasPartidas = new ArrayList<>();
-        Map<Integer, List<Inscripcion>> grupos = inscripciones.stream()
+        Map<Integer, List<Inscripcion>> gruposMap = inscripciones.stream()
                 .filter(i -> i.getNumeroGrupo() != null)
                 .collect(Collectors.groupingBy(Inscripcion::getNumeroGrupo));
 
-        for (Map.Entry<Integer, List<Inscripcion>> entry : grupos.entrySet()) {
+        if (!partidasExistentes.isEmpty()) return new ArrayList<>(); // Ya se generaron los grupos
+
+        for (Map.Entry<Integer, List<Inscripcion>> entry : gruposMap.entrySet()) {
             todasLasPartidas.addAll(generarRoundRobin(torneo, entry.getValue()));
         }
 
@@ -498,48 +558,64 @@ public class EmparejamientoService {
     }
 
     private List<Partida> generarRondaEquipos(Torneo torneo, List<Inscripcion> inscripciones) {
-        // Similar al Suizo pero evita emparejamientos del mismo equipo
+        // Agrupar jugadores por equipo
+        Map<String, List<Inscripcion>> equiposMap = inscripciones.stream()
+                .filter(i -> i.getNombreEquipo() != null && !i.getNombreEquipo().isEmpty())
+                .collect(Collectors.groupingBy(Inscripcion::getNombreEquipo));
+        
+        List<String> nombresEquipos = new ArrayList<>(equiposMap.keySet());
+        Collections.shuffle(nombresEquipos);
+        
+        List<Partida> generadas = new ArrayList<>();
         List<Partida> partidasExistentes = partidaRepository.findByTorneoId(torneo.getId());
-        int rondaActual = partidasExistentes.stream().mapToInt(p -> p.getRondaNumero() == null ? 0 : p.getRondaNumero()).max().orElse(0);
+        int rondaActual = partidasExistentes.stream()
+                .mapToInt(p -> p.getRondaNumero() == null ? 0 : p.getRondaNumero()).max().orElse(0);
         int nuevaRonda = rondaActual + 1;
 
-        List<Inscripcion> ordenados = new ArrayList<>(inscripciones);
-        ordenados.sort((a, b) -> Double.compare(b.getPuntosAcumulados(), a.getPuntosAcumulados()));
-
-        List<Usuario> jugadoresDisponibles = ordenados.stream().map(Inscripcion::getUsuario).collect(Collectors.toList());
-        List<Partida> generadas = new ArrayList<>();
-
-        while (jugadoresDisponibles.size() >= 2) {
-            Usuario w = jugadoresDisponibles.remove(0);
-            Usuario b = null;
+        while(nombresEquipos.size() >= 2) {
+            String t1Name = nombresEquipos.remove(0);
+            String t2Name = nombresEquipos.remove(0);
+            List<Inscripcion> m1 = equiposMap.get(t1Name);
+            List<Inscripcion> m2 = equiposMap.get(t2Name);
             
-            // Buscar oponente que no sea del mismo equipo y no hayan jugado
-            for (int i = 0; i < jugadoresDisponibles.size(); i++) {
-                Usuario candidato = jugadoresDisponibles.get(i);
-                if (!yaJugaron(w, candidato, partidasExistentes) && !sonDelMismoEquipo(w, candidato, inscripciones)) {
-                    b = jugadoresDisponibles.remove(i);
-                    break;
-                }
+            // Ordenar por ELO para emparejar Tablero 1 vs Tablero 1, etc.
+            m1.sort((a,b) -> (b.getUsuario().getEloRating() - a.getUsuario().getEloRating()));
+            m2.sort((a,b) -> (b.getUsuario().getEloRating() - a.getUsuario().getEloRating()));
+            
+            int tableros = Math.min(m1.size(), m2.size());
+            if (torneo.getNumTableros() != null && torneo.getNumTableros() > 0) {
+                tableros = Math.min(tableros, torneo.getNumTableros());
             }
             
-            // Si no hay oponente "ideal", emparejar con el primero disponible
-            if (b == null) b = jugadoresDisponibles.remove(0);
-
-            Partida p = new Partida();
-            p.setTorneo(torneo);
-            p.setRondaNumero(nuevaRonda);
-            p.setBlancas(w);
-            p.setNegras(b);
-            generadas.add(partidaRepository.save(p));
+            for(int i=0; i < tableros; i++) {
+                Partida p = new Partida();
+                p.setTorneo(torneo);
+                p.setRondaNumero(nuevaRonda);
+                // Alternar colores por tablero
+                if (i % 2 == 0) {
+                    p.setBlancas(m1.get(i).getUsuario());
+                    p.setNegras(m2.get(i).getUsuario());
+                } else {
+                    p.setBlancas(m2.get(i).getUsuario());
+                    p.setNegras(m1.get(i).getUsuario());
+                }
+                generadas.add(partidaRepository.save(p));
+            }
         }
 
-        if (!jugadoresDisponibles.isEmpty()) {
-            Partida p = new Partida();
-            p.setTorneo(torneo);
-            p.setRondaNumero(nuevaRonda);
-            p.setBlancas(jugadoresDisponibles.remove(0));
-            p.setResultado("BYE");
-            generadas.add(partidaRepository.save(p));
+        // Si quedó un equipo libre, darle BYE a sus miembros principales
+        if (!nombresEquipos.isEmpty()) {
+            String lastTeam = nombresEquipos.get(0);
+            List<Inscripcion> members = equiposMap.get(lastTeam);
+            int maxByes = torneo.getNumTableros() != null ? Math.min(members.size(), torneo.getNumTableros()) : members.size();
+            for (int i = 0; i < maxByes; i++) {
+                Partida p = new Partida();
+                p.setTorneo(torneo);
+                p.setRondaNumero(nuevaRonda);
+                p.setBlancas(members.get(i).getUsuario());
+                p.setResultado("BYE");
+                generadas.add(partidaRepository.save(p));
+            }
         }
 
         torneo.setEstado("EN_CURSO");

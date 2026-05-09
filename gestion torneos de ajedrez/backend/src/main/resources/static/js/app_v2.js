@@ -4,6 +4,53 @@
 
 window.currentTournamentId = null;
 var currentTournamentId = null; // Para compatibilidad dual
+var currentView = 'dashboard-view'; // Tracking de la vista activa
+
+/**
+ * Muestra una notificación tipo toast en la esquina superior derecha.
+ * @param {string} message - Mensaje a mostrar
+ * @param {string} type - 'success' (por defecto) | 'error' | 'warning'
+ */
+function showNotification(message, type = 'success') {
+    const container = document.getElementById('notification-container');
+    if (!container) {
+        console.warn('Notificación:', message);
+        return;
+    }
+    const colors = {
+        success: { bg: '#16a34a', icon: 'fa-circle-check' },
+        error:   { bg: '#dc2626', icon: 'fa-circle-xmark' },
+        warning: { bg: '#d97706', icon: 'fa-triangle-exclamation' }
+    };
+    const c = colors[type] || colors.success;
+    const toast = document.createElement('div');
+    toast.style.cssText = [
+        `background: ${c.bg}`,
+        'color: white',
+        'padding: 12px 20px',
+        'border-radius: 10px',
+        'box-shadow: 0 4px 15px rgba(0,0,0,0.2)',
+        'display: flex',
+        'align-items: center',
+        'gap: 10px',
+        'font-weight: 600',
+        'font-size: 0.9rem',
+        'min-width: 280px',
+        'max-width: 400px',
+        'animation: slideInRight 0.3s ease',
+        'cursor: pointer'
+    ].join(';');
+    toast.innerHTML = `<i class="fa-solid ${c.icon}"></i> ${message}`;
+    toast.onclick = () => toast.remove();
+    container.appendChild(toast);
+    setTimeout(() => {
+        toast.style.opacity = '0';
+        toast.style.transition = 'opacity 0.4s';
+        setTimeout(() => toast.remove(), 400);
+    }, 3500);
+}
+window.showNotification = showNotification;
+
 
 document.addEventListener('DOMContentLoaded', () => {
     console.log('DOMContentLoaded ejecutado');
@@ -19,10 +66,18 @@ document.addEventListener('DOMContentLoaded', () => {
     initForms();
     initSearchFilters();
     initTheme();
-    renderDashboard();
-    renderTournamentList();
-    initAchievementManagement(); // Nueva función
-    if (typeof renderAchievements === 'function') renderAchievements(); // Forzar render al inicio
+    initFAB(); // Initialize FAB menu
+    
+    // Auto-load dashboard if logged in
+    const user = localStorage.getItem('jwt_token');
+    if (user) {
+        showView('dashboard-view');
+    } else {
+        document.getElementById('login-overlay').style.display = 'flex';
+    }
+
+    initAchievementManagement(); 
+    if (typeof renderAchievements === 'function') renderAchievements(); 
 });
 
 function checkAuthStatus() {
@@ -125,11 +180,14 @@ function initNavigation() {
             const target = e.currentTarget.getAttribute('data-target');
             document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
             e.currentTarget.classList.add('active');
+            // Show the view
             showView(target);
-            if(target === 'dashboard-view') renderDashboard();
+
+            // Trigger specific renders
             if(target === 'tournaments-view') renderTournamentList();
             if(target === 'users-view') renderUsers();
             if(target === 'players-view') renderPlayersView();
+            if(target === 'teams-management-view') renderTeamsManagementView();
             if(target === 'ranking-view') renderGlobalRanking();
             if(target === 'compare-view') populateCompareSelects();
             if(target === 'analysis-view') setTimeout(initAnalysisBoard, 500);
@@ -355,21 +413,96 @@ window.showView = function(viewId) {
 
     document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
     const target = document.getElementById(viewId);
-    if (target) {
-        target.classList.add('active');
-        // Trigger renders
-        if (viewId === 'achievements-view') renderAchievements();
-        if (viewId === 'analysis-view') {
-            if (typeof initAnalysisBoard === 'function') initAnalysisBoard();
-            if (typeof renderSavedAnalysisList === 'function') renderSavedAnalysisList();
-        }
+    if (!target) {
+        console.error('Vista no encontrada:', viewId);
+        return;
+    }
+
+    target.classList.add('active');
+    currentView = viewId; // <- Track current view
+
+    // Trigger renders for specific views
+    if (viewId === 'dashboard-view') {
+        console.log('showView rendering Dashboard');
+        renderDashboard();
+    }
+    if (viewId === 'achievements-view') renderAchievements();
+    if (viewId === 'analysis-view') {
+        if (typeof initAnalysisBoard === 'function') initAnalysisBoard();
+        if (typeof renderSavedAnalysisList === 'function') renderSavedAnalysisList();
+    }
+    if (viewId === 'teams-management-view') {
+        renderTeamsManagementView();
     }
 };
 
 window.openModal = function(modalId) { 
+    console.log('Opening modal:', modalId);
     const modal = document.getElementById(modalId);
-    if (modal) modal.classList.add('active'); 
+    if (!modal) {
+        console.error('Modal not found:', modalId);
+        return;
+    }
+    
+    // Refresh player list if opening team modal
+    if (modalId === 'create-team-modal') {
+        refreshTeamPlayerList();
+    }
+    
+    modal.classList.add('active'); 
+    document.body.style.overflow = 'hidden'; // Prevent scroll
 };
+
+async function refreshTeamPlayerList() {
+    const checkboxContainer = document.getElementById('team-player-checkboxes');
+    if (!checkboxContainer) return;
+    
+    checkboxContainer.innerHTML = '<div style="text-align:center; padding:20px; color:var(--accent-color);"><i class="fa-solid fa-spinner fa-spin fa-2x"></i><br><small>Cargando jugadores...</small></div>';
+    
+    try {
+        const users = await API.getUsuarios();
+        const players = users.filter(u => String(u.role).toUpperCase() !== 'ADMIN');
+        
+        // Sort: Free agents first
+        players.sort((a, b) => {
+            if (!a.nombreEquipo && b.nombreEquipo) return -1;
+            if (a.nombreEquipo && !b.nombreEquipo) return 1;
+            return a.username.localeCompare(b.username);
+        });
+
+        // Extract existing teams for the dropdown
+        const teamSelect = document.getElementById('select-existing-team');
+        if (teamSelect) {
+            const teamNames = [...new Set(players.filter(p => p.nombreEquipo).map(p => p.nombreEquipo))].sort();
+            teamSelect.innerHTML = '<option value="">-- Nuevo Equipo --</option>' + 
+                teamNames.map(t => `<option value="${t}">${t}</option>`).join('');
+            
+            teamSelect.onchange = (e) => {
+                const input = document.getElementById('form-team-name');
+                if (input) {
+                    input.value = e.target.value;
+                    input.disabled = !!e.target.value;
+                }
+            };
+        }
+
+        checkboxContainer.innerHTML = players.map(p => `
+            <label style="display: flex; align-items: center; gap: 12px; padding: 10px; cursor: pointer; border-bottom: 1px solid rgba(0,0,0,0.05); transition: background 0.2s;" class="player-checkbox-item">
+                <input type="checkbox" name="team-players" value="${p.id}" style="width: 20px; height: 20px; accent-color: var(--accent-color);">
+                <div style="display:flex; flex-direction:column; flex:1;">
+                    <span style="font-size: 0.95rem; font-weight:700; color:var(--text-main);">${p.username}</span>
+                    <span style="font-size: 0.8rem; color: ${p.nombreEquipo ? 'var(--accent-color)' : 'var(--text-muted)'};">
+                        <i class="fa-solid ${p.nombreEquipo ? 'fa-users' : 'fa-user-slash'}"></i> 
+                        ${p.nombreEquipo || 'Agente Libre'} • ELO: ${p.eloRating}
+                    </span>
+                </div>
+            </label>
+        `).join('') || '<div style="color: var(--text-muted); text-align: center; padding:30px;">No hay jugadores para asignar</div>';
+    } catch (err) {
+        console.error('Error refreshTeamPlayerList:', err);
+        checkboxContainer.innerHTML = '<div style="color: red; text-align: center; padding:20px;">Error al cargar jugadores.</div>';
+    }
+}
 
 window.closeModal = function(modalId) { 
     const modal = document.getElementById(modalId);
@@ -669,24 +802,79 @@ function initForms() {
     const formAddPlayer = document.getElementById('form-add-player');
     const formCreatePlayer = document.getElementById('form-create-player');
     
+    // Also init team players checkbox list in team modal
+    API.getUsuarios().then(users => {
+        const players = users.filter(u => String(u.role).toUpperCase() !== 'ADMIN');
+        const checkboxContainer = document.getElementById('team-player-checkboxes');
+        if(checkboxContainer) {
+            checkboxContainer.innerHTML = players.map(p => `
+                <label style="display: flex; align-items: center; gap: 10px; padding: 5px; cursor: pointer; border-bottom: 1px solid rgba(0,0,0,0.05);">
+                    <input type="checkbox" name="team-players" value="${p.id}" style="width: 18px; height: 18px;">
+                    <span style="font-size: 0.9rem;">${p.username} <small style="color: var(--text-muted);">(${p.nombreEquipo || 'Sin Equipo'})</small></span>
+                </label>
+            `).join('') || '<div style="color: var(--text-muted); text-align: center;">No hay jugadores disponibles</div>';
+        }
+    });
+
+    // PGN Input Listener for manual analysis
+    const pgnArea = document.getElementById('pgn-input');
+    if (pgnArea) {
+        pgnArea.addEventListener('input', () => {
+            const pgn = pgnArea.value;
+            const tempGame = new Chess();
+            if (tempGame.load_pgn(pgn)) {
+                analysisGame = tempGame;
+                currentHistory = analysisGame.history();
+                currentMoveIndex = currentHistory.length - 1;
+                moveEvaluations = new Array(currentHistory.length).fill(null);
+                analysisBoard.position(analysisGame.fen());
+                updateAnalysisUI();
+                updateAccuracySummary();
+            }
+        });
+    }
+    
     // El toggle ya se maneja vía onclick global
 
     if (formLogin) {
         formLogin.addEventListener('submit', async (e) => {
             e.preventDefault();
-            const user = document.getElementById('login-user').value;
-            const pass = document.getElementById('login-pass').value;
-            const recaptchaToken = grecaptcha.getResponse(0);
-            if(!recaptchaToken) { alert('Marca el reCAPTCHA'); return; }
-            const res = await API.login(user, pass, recaptchaToken);
-            if (res && res.token) {
-                localStorage.setItem('jwt_token', res.token);
-                localStorage.setItem('currentUser', JSON.stringify(res.usuario));
-                if (typeof grecaptcha !== 'undefined') grecaptcha.reset(0);
-                checkAuthStatus(); connectWebSocket(); renderDashboard();
-            } else {
-                if (typeof grecaptcha !== 'undefined') grecaptcha.reset(0);
-                errorDiv.textContent = 'Error de login'; errorDiv.style.display = 'block';
+            const btn = formLogin.querySelector('button[type="submit"]');
+            if(btn) { btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Entrando...'; }
+            
+            try {
+                const user = document.getElementById('login-user').value;
+                const pass = document.getElementById('login-pass').value;
+                
+                let recaptchaToken = "";
+                try {
+                    if (typeof grecaptcha !== 'undefined') {
+                        recaptchaToken = grecaptcha.getResponse(0);
+                    }
+                } catch(reErr) { console.warn("Error al obtener reCAPTCHA:", reErr); }
+
+                if(!recaptchaToken && typeof grecaptcha !== 'undefined') { 
+                    alert('Por favor, marca el cuadro del reCAPTCHA.'); 
+                    if(btn) { btn.disabled = false; btn.innerHTML = 'Entrar'; }
+                    return; 
+                }
+
+                const res = await API.login(user, pass, recaptchaToken);
+                if (res && res.token) {
+                    localStorage.setItem('jwt_token', res.token);
+                    localStorage.setItem('currentUser', JSON.stringify(res.usuario));
+                    if (typeof grecaptcha !== 'undefined') try { grecaptcha.reset(0); } catch(e){}
+                    checkAuthStatus(); connectWebSocket(); renderDashboard();
+                } else {
+                    if (typeof grecaptcha !== 'undefined') try { grecaptcha.reset(0); } catch(e){}
+                    errorDiv.textContent = 'Usuario o contraseña incorrectos.'; 
+                    errorDiv.style.display = 'block';
+                }
+            } catch (err) {
+                console.error("Error en login:", err);
+                alert("Error de conexión con el servidor.");
+            } finally {
+                if(btn) { btn.disabled = false; btn.innerHTML = 'Entrar'; }
             }
         });
     }
@@ -698,10 +886,16 @@ function initForms() {
             const email = document.getElementById('reg-email').value;
             const pass = document.getElementById('reg-pass').value;
             const elo = parseInt(document.getElementById('reg-elo').value) || 1200;
-            const recaptchaToken = grecaptcha.getResponse(1);
-            if(!recaptchaToken) { alert('Marca el reCAPTCHA'); return; }
+            let recaptchaToken = "";
+            try {
+                if (typeof grecaptcha !== 'undefined') {
+                    recaptchaToken = grecaptcha.getResponse(1);
+                }
+            } catch(e){}
+
+            if(!recaptchaToken && typeof grecaptcha !== 'undefined') { alert('Marca el reCAPTCHA'); return; }
             const res = await API.register(user, pass, email, 'ADMIN', elo, recaptchaToken); 
-            if (typeof grecaptcha !== 'undefined') grecaptcha.reset(1);
+            if (typeof grecaptcha !== 'undefined') try { grecaptcha.reset(1); } catch(e){}
             if (res) { 
                 alert("¡Cuenta creada con éxito! Ahora puedes iniciar sesión."); 
                 toggleAuthMode();
@@ -721,7 +915,8 @@ function initForms() {
                 const nombre = document.getElementById('form-t-name').value;
                 const sistemaJuego = document.getElementById('form-t-sistema').value;
                 const maxRondas = sistemaJuego === 'SUIZO' ? parseInt(document.getElementById('form-t-rondas').value) : null;
-                const t = await API.createTorneo({ nombre, descripcion: "Torneo de Ajedrez", sistemaJuego, maxRondas });
+                const numTableros = sistemaJuego === 'EQUIPOS' ? parseInt(document.getElementById('form-t-tableros').value) : null;
+                const t = await API.createTorneo({ nombre, descripcion: "Torneo de Ajedrez", sistemaJuego, maxRondas, numTableros });
                 if(t) { closeModal('create-tournament-modal'); renderDashboard(); renderTournamentList(); openTournamentDetail(t.id); }
             } catch (err) { alert("Error al crear"); } finally { btn.disabled = false; btn.innerHTML = 'Crear Torneo'; }
         });
@@ -734,10 +929,33 @@ function initForms() {
             if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Inscribiendo...'; }
             try {
                 const mode = document.getElementById('add-player-mode').value;
-                console.log('Inscribiendo jugador, modo:', mode, 'TorneoID:', currentTournamentId);
+                const targetId = window.currentTournamentId || currentTournamentId;
                 
-                if (!currentTournamentId) {
-                    alert("Error: No hay un ID de torneo activo. Por favor, cierra y vuelve a abrir el torneo.");
+                if (!targetId) {
+                    alert("Error: No hay un ID de torneo activo.");
+                    return;
+                }
+
+                if (mode === 'equipos') {
+                    const teamName = document.getElementById('form-team-select').value;
+                    if (!teamName) { alert("Selecciona un equipo"); return; }
+                    
+                    showNotification("Inscribiendo equipo...");
+                    const users = await API.getUsuarios();
+                    const members = users.filter(u => u.nombreEquipo === teamName);
+                    
+                    let count = 0;
+                    for (const user of members) {
+                        const res = await API.inscribirJugador(targetId, {
+                            nombre: user.username,
+                            elo: user.eloRating,
+                            nombreEquipo: teamName
+                        });
+                        if (res && (res.id || res.success !== false)) count++;
+                    }
+                    showNotification(`Equipo "${teamName}" inscrito con ${count} jugadores.`);
+                    closeModal('add-player-modal');
+                    renderTournamentDetail(targetId);
                     return;
                 }
 
@@ -752,29 +970,32 @@ function initForms() {
                     data.elo = document.getElementById('form-p-elo').value;
                     data.nombreEquipo = document.getElementById('form-p-team')?.value || '';
                     
-                    console.log('Obteniendo reCAPTCHA index 2...');
-                    const recaptchaToken = grecaptcha.getResponse(2);
-                    if(!recaptchaToken) { alert("Por favor, marca el reCAPTCHA de Inscripción"); return; }
+                    let recaptchaToken = "";
+                    try {
+                        if (typeof grecaptcha !== 'undefined') {
+                            recaptchaToken = grecaptcha.getResponse(2);
+                        }
+                    } catch(e){}
+                    
+                    if(!recaptchaToken && typeof grecaptcha !== 'undefined') { alert("Por favor, marca el reCAPTCHA de Inscripción"); return; }
                     data.recaptchaToken = recaptchaToken;
                 }
                 
-                const targetId = window.currentTournamentId || currentTournamentId;
-                console.log('Llamando a API.inscribirJugador con ID:', targetId);
                 const res = await API.inscribirJugador(targetId, data);
-                if (typeof grecaptcha !== 'undefined' && mode !== 'existente') grecaptcha.reset(2);
+                if (typeof grecaptcha !== 'undefined' && mode !== 'existente') try { grecaptcha.reset(2); } catch(e){}
                 
                 if (res && (res.id || res.success)) { 
-                    alert("¡Jugador inscrito con éxito!");
+                    showNotification("¡Jugador inscrito con éxito!");
                     closeModal('add-player-modal'); 
-                    renderTournamentDetail(currentTournamentId); 
+                    renderTournamentDetail(targetId); 
                 } else { 
-                    alert("Error: " + (res?.message || "Inscripción fallida (verifica si el jugador ya existe)")); 
+                    alert("Error: " + (res?.message || "Inscripción fallida")); 
                 }
             } catch (err) {
                 console.error('Error en formAddPlayer:', err);
                 alert('Error crítico al inscribir: ' + err.message);
             } finally {
-                if(btn) { btn.disabled = false; btn.innerHTML = 'Añadir a la lista'; }
+                if(btn) { btn.disabled = false; btn.innerHTML = 'Añadir al Torneo'; }
             }
         });
     }
@@ -809,9 +1030,14 @@ function initForms() {
                 
                 console.log('Datos:', { username, email, elo });
                 console.log('Obteniendo reCAPTCHA index 3...');
-                const recaptchaToken = grecaptcha.getResponse(3);
+                let recaptchaToken = "";
+                try {
+                    if (typeof grecaptcha !== 'undefined') {
+                        recaptchaToken = grecaptcha.getResponse(3);
+                    }
+                } catch(e){}
                 
-                if(!recaptchaToken) { 
+                if(!recaptchaToken && typeof grecaptcha !== 'undefined') { 
                     alert('Por favor, marca el reCAPTCHA de Creación de Jugador'); 
                     btn.disabled = false; 
                     btn.innerHTML = 'Crear Jugador'; 
@@ -819,7 +1045,7 @@ function initForms() {
                 }
                 
                 const res = await API.register(username, password, email, 'PLAYER', elo, recaptchaToken);
-                if (typeof grecaptcha !== 'undefined') grecaptcha.reset(3);
+                if (typeof grecaptcha !== 'undefined') try { grecaptcha.reset(3); } catch(e){}
 
                 if (res) {
                     alert('¡Jugador "' + username + '" creado con éxito!');
@@ -847,21 +1073,76 @@ function initForms() {
 
 // DASHBOARD
 async function renderDashboard() {
+    console.log('renderDashboard() iniciado');
+    const recentList = document.getElementById('recent-tournaments-list');
+    const teamRankingBody = document.querySelector('#dashboard-team-ranking-table tbody');
+    
+    if (recentList) recentList.innerHTML = '<div style="grid-column: 1/-1; text-align:center; padding:1rem;"><i class="fa-solid fa-spinner fa-spin"></i> Cargando torneos...</div>';
+    if (teamRankingBody) teamRankingBody.innerHTML = '<tr><td colspan="5" style="text-align:center;"><i class="fa-solid fa-spinner fa-spin"></i> Calculando...</td></tr>';
+
     try {
         const tournaments = await API.getTorneos() || [];
         const users = await API.getUsuarios() || [];
+        
         document.getElementById('stat-active-tournaments').textContent = tournaments.filter(t => t.estado === 'EN_CURSO').length;
         document.getElementById('stat-total-players').textContent = users.filter(u => String(u.role || '').toUpperCase() !== 'ADMIN').length;
+        
         const activeMatches = await API.getActiveMatchesCount() || 0;
         document.getElementById('stat-active-matches').textContent = activeMatches;
-        const recentList = document.getElementById('recent-tournaments-list');
+        
         if (recentList) {
             recentList.innerHTML = '';
-            [...tournaments].reverse().slice(0, 10).forEach(t => recentList.appendChild(createTournamentUIItem(t)));
+            if (tournaments.length === 0) {
+                recentList.innerHTML = '<div style="grid-column: 1/-1; text-align:center; padding:2rem; color:gray;">No hay torneos registrados.</div>';
+            } else {
+                [...tournaments].reverse().slice(0, 10).forEach(t => recentList.appendChild(createTournamentUIItem(t)));
+            }
         }
+
+        // Global Team Ranking
+        if (teamRankingBody) {
+            const teams = {};
+            users.forEach(u => {
+                if (u.role === 'ADMIN') return;
+                const teamName = u.nombreEquipo || 'Sin Equipo';
+                if (!teams[teamName]) teams[teamName] = { name: teamName, members: 0, eloSum: 0, ptsSum: 0 };
+                teams[teamName].members++;
+                teams[teamName].eloSum += u.eloRating || 0;
+            });
+
+            // We need points too, but points are in inscriptions. 
+            // For a global ranking, maybe just based on ELO or active tournament points?
+            // User said "la clasificacion era en el dashboard". 
+            // I'll use the ELO average and member count for now, or fetch all inscriptions if possible.
+            // Let's stick to ELO and member count for "Global" ranking if we don't have global points.
+            // Actually, I can fetch all inscriptions for all tournaments? No, too slow.
+            
+            const teamArray = Object.values(teams)
+                .filter(t => t.name !== 'Sin Equipo')
+                .sort((a, b) => (b.eloSum / b.members) - (a.eloSum / a.members));
+
+            if (teamArray.length === 0) {
+                teamRankingBody.innerHTML = '<tr><td colspan="5" style="text-align:center;">No hay equipos registrados aún.</td></tr>';
+            } else {
+                teamRankingBody.innerHTML = teamArray.map((t, i) => {
+                    const avgElo = Math.round(t.eloSum / t.members);
+                    let pos = `#${i+1}`;
+                    if(i === 0) pos = '🥇';
+                    return `<tr>
+                        <td>${pos}</td>
+                        <td><strong style="color:var(--accent-color);">${t.name}</strong></td>
+                        <td>${t.members}</td>
+                        <td>---</td>
+                        <td><strong>${avgElo}</strong></td>
+                    </tr>`;
+                }).join('');
+            }
+        }
+
         await renderGlobalRanking();
     } catch (e) {
         console.error('Error en renderDashboard:', e);
+        if (recentList) recentList.innerHTML = '<div style="grid-column: 1/-1; text-align:center; padding:2rem; color:red;">Error al cargar datos del Dashboard.</div>';
     }
 }
 
@@ -966,17 +1247,29 @@ async function renderTournamentDetail(id) {
             banner.style = [
                 'background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%)',
                 'color: white',
-                'padding: 20px 40px',
-                'border-radius: 15px',
+                'padding: 25px 50px',
+                'border-radius: 20px',
                 'text-align: center',
-                'font-weight: 800',
-                'font-size: 1.8rem',
-                'box-shadow: 0 10px 25px rgba(245, 158, 11, 0.4)',
-                'border: 3px solid white',
-                'display: inline-block'
+                'box-shadow: 0 15px 35px rgba(245, 158, 11, 0.4)',
+                'border: 4px solid white',
+                'display: flex',
+                'flex-direction: column',
+                'gap: 10px'
             ].join(';');
             
-            banner.innerHTML = `🏆 &nbsp; ¡EL GRAN CAMPEÓN ES: ${winner.usuario.username.toUpperCase()}! &nbsp; 🏆`;
+            if (t.sistemaJuego === 'EQUIPOS') {
+                const teamName = winner.nombreEquipo || 'Sin Equipo';
+                const teamMembers = inscripciones.filter(i => i.nombreEquipo === teamName).map(i => i.usuario.username).join(', ');
+                banner.innerHTML = `
+                    <div style="font-size: 2rem; font-weight: 800;">🏆 ¡EQUIPO CAMPEÓN: ${teamName.toUpperCase()}! 🏆</div>
+                    <div style="font-size: 1rem; opacity: 0.9; font-weight: 500;">Integrantes: ${teamMembers}</div>
+                `;
+            } else {
+                banner.innerHTML = `
+                    <div style="font-size: 2rem; font-weight: 800;">🏆 ¡EL GRAN CAMPEÓN ES: ${winner.usuario.username.toUpperCase()}! 🏆</div>
+                    <div style="font-size: 1rem; opacity: 0.9; font-weight: 500;">Con un total de ${winner.puntosAcumulados} puntos</div>
+                `;
+            }
             bannerWrapper.appendChild(banner);
             header.insertAdjacentElement('afterend', bannerWrapper);
         }
@@ -1007,27 +1300,33 @@ async function renderTournamentDetail(id) {
             if (t.sistemaJuego === 'ROUND_ROBIN') {
                 const allMatchesFinished = partidas.length > 0 && partidas.every(p => p.resultado !== 'P');
                 isFinal = allMatchesFinished;
-            } else if (t.sistemaJuego === 'SUIZO') {
-                const nJugadores = inscripciones.length;
+            } else if (t.sistemaJuego === 'SUIZO' || t.sistemaJuego === 'EQUIPOS') {
+                const nJugadores = (t.sistemaJuego === 'EQUIPOS') ? [...new Set(inscripciones.map(i => i.nombreEquipo))].length : inscripciones.length;
                 const rondasEsperadas = t.maxRondas || Math.ceil(Math.log2(Math.max(nJugadores, 2)));
                 isFinal = rondaActualCompleta && maxRound >= rondasEsperadas;
                 
-                // Si es suizo y la ronda terminó pero no es la final, mostramos ambos
+                // Si la ronda terminó pero no es la final, mostramos ambos
                 if (rondaActualCompleta && !isFinal) {
                     actionButtons = `
                         <button class="btn" style="background:#dc2626; color:white; padding:10px 20px; border-radius:8px;" onclick="completeTournament('${id}')"><i class="fa-solid fa-trophy"></i> FINALIZAR YA</button>
                         <button class="btn btn-primary" onclick="startTournament('${id}')"><i class="fa-solid fa-forward"></i> SIGUIENTE RONDA</button>
                     `;
                 }
-            } else if (t.sistemaJuego.includes('ELIMINATORIA')) {
-                if (currentRoundMatches.length === 1 && currentRoundMatches[0].resultado !== 'P') isFinal = true;
+            } else if (t.sistemaJuego.includes('ELIMINATORIA') || t.sistemaJuego === 'GRUPOS') {
+                // En eliminatoria o grupos (fase final), es final si solo hay 1 partida en la ronda y terminó
+                if (currentRoundMatches.length === 1 && currentRoundMatches[0].resultado !== 'P' && maxRound > 3) isFinal = true;
             }
 
             if (!actionButtons) {
                 if (isFinal) {
                     actionButtons = `<button class="btn btn-primary" style="background:#dc2626;" onclick="completeTournament('${id}')"><i class="fa-solid fa-trophy"></i> FINALIZAR TORNEO</button>`;
                 } else if (rondaActualCompleta) {
-                    actionButtons = `<button class="btn btn-primary" onclick="startTournament('${id}')"><i class="fa-solid fa-forward"></i> SIGUIENTE RONDA</button>`;
+                    let btnText = "SIGUIENTE RONDA";
+                    if (t.sistemaJuego === 'GRUPOS') {
+                        // Detectar si estamos terminando la fase de grupos (3 rondas para grupos de 4)
+                        if (maxRound === 3) btnText = "GENERAR FASE ELIMINATORIA";
+                    }
+                    actionButtons = `<button class="btn btn-primary" onclick="startTournament('${id}')"><i class="fa-solid fa-forward"></i> ${btnText}</button>`;
                 } else {
                     actionButtons = `<span style="color:var(--text-muted); font-size:0.9rem;"><i class="fa-solid fa-clock"></i> Ronda ${maxRound} en curso — completa todos los resultados</span>`;
                 }
@@ -1041,7 +1340,7 @@ async function renderTournamentDetail(id) {
         }
         
         if (isAdmin) {
-            actions.innerHTML += `<button class="btn" style="background:#dc2626; color:white; padding:10px 20px; border-radius:8px;" onclick="deleteTournament('${id}')"><i class="fa-solid fa-trash-can"></i> ELIMINAR</button>`;
+            actions.innerHTML += `<button class="btn btn-danger" style="padding:10px 20px; border-radius:10px; font-weight:700; box-shadow: 0 4px 15px rgba(229, 57, 53, 0.2);" onclick="deleteTournament('${id}')"><i class="fa-solid fa-trash-can"></i> ELIMINAR TORNEO</button>`;
             
             // Mostrar botón de exportar FIDE y pestaña de árbitro para admins
             const fideBtn = document.querySelector('button[onclick*="exportFide"]');
@@ -1064,10 +1363,56 @@ async function renderTournamentDetail(id) {
         }
     }
     
+    // Explicitly handle Teams and Brackets tab visibility
+    const teamsTabBtn = document.getElementById('btn-tab-teams');
+    const bracketsTabBtn = document.getElementById('btn-tab-bracket');
+
+    if (teamsTabBtn) {
+        teamsTabBtn.style.display = (t.sistemaJuego === 'EQUIPOS') ? 'inline-block' : 'none';
+        if (t.sistemaJuego === 'EQUIPOS') {
+            teamsTabBtn.innerHTML = '<i class="fa-solid fa-users-viewfinder"></i> EQUIPOS (Activo)';
+            teamsTabBtn.style.background = 'rgba(161, 136, 127, 0.1)';
+        }
+    }
+
+    if (bracketsTabBtn) {
+        const isKnockout = ['ELIMINATORIA', 'DOBLE_ELIMINATORIA', 'GRUPOS'].includes(t.sistemaJuego);
+        bracketsTabBtn.style.display = isKnockout ? 'inline-block' : 'none';
+    }
+
+    // Add "Elegir Equipo" and "Crear Equipo" buttons if EQUIPOS tournament and PENDIENTE
+    if (t.sistemaJuego === 'EQUIPOS' && t.estado === 'PENDIENTE') {
+        const teamButtonsHtml = `
+            <div style="display:flex; gap:10px; margin-bottom:1.5rem; background: rgba(139, 90, 43, 0.05); padding: 15px; border-radius: 12px; border: 1px solid var(--accent-light);">
+                <button class="btn btn-primary" style="flex:1;" onclick="openAddPlayerModal('equipos')">
+                    <i class="fa-solid fa-users-rectangle"></i> Inscribir Equipo Existente
+                </button>
+                <button class="btn btn-secondary" style="flex:1;" onclick="openModal('create-team-modal')">
+                    <i class="fa-solid fa-plus-circle"></i> Crear Nuevo Equipo
+                </button>
+            </div>
+        `;
+        const tabPlayers = document.getElementById('tab-players');
+        if (tabPlayers) {
+            const existingBtn = document.getElementById('team-actions-container');
+            if (!existingBtn) {
+                const div = document.createElement('div');
+                div.id = 'team-actions-container';
+                div.innerHTML = teamButtonsHtml;
+                tabPlayers.prepend(div);
+            }
+        }
+    } else {
+        const existingBtn = document.getElementById('team-actions-container');
+        if (existingBtn) existingBtn.remove();
+    }
+
     renderPlayers(inscripciones, t.estado, id);
+    renderTeams(inscripciones);
     renderRounds(partidas, t.estado, id, t.sistemaJuego, inscripciones);
     renderStandings(inscripciones, t.estado, t.sistemaJuego);
     renderBrackets(partidas, t.sistemaJuego);
+    renderArbiterTools(id);
 
     // Si el usuario logueado está inscrito, mostrar su QR de presencia
     const myIns = inscripciones.find(ins => ins.usuario.id === user.id);
@@ -1100,34 +1445,46 @@ function renderBrackets(partidas, sistema) {
     
     if (!container) return;
     
-    const isElimination = sistema === 'ELIMINATORIA' || sistema === 'DOBLE_ELIMINATORIA';
-    if (!isElimination) {
+    const isKnockout = ['ELIMINATORIA', 'DOBLE_ELIMINATORIA', 'GRUPOS'].includes(sistema);
+    if (!isKnockout) {
         if(tabBtn) tabBtn.style.display = 'none';
         return;
     }
     
-    if(tabBtn) tabBtn.style.display = 'block';
+    if(tabBtn) tabBtn.style.display = 'inline-block';
     container.innerHTML = '';
 
-    if (partidas.length === 0) {
-        container.innerHTML = '<div style="text-align:center; color:gray; padding:3rem;"><i class="fa-solid fa-sitemap" style="font-size:3rem; display:block; margin-bottom:1rem; opacity:0.2;"></i>El cuadro visual se generará automáticamente al iniciar el torneo.</div>';
+    if (!partidas || partidas.length === 0) {
+        container.innerHTML = '<div style="text-align:center; color:gray; padding:3rem;"><i class="fa-solid fa-sitemap" style="font-size:3rem; display:block; margin-bottom:1rem; opacity:0.2;"></i>El cuadro visual se generará automáticamente al iniciar la fase eliminatoria.</div>';
         return;
     }
 
-    // Para Doble Eliminatoria, intentamos separar en Ganadores y Perdedores si es posible
+    // Filtrar partidas de grupos en modo Mundial para no ensuciar el cuadro
+    let partidasFiltradas = partidas;
+    if (sistema === 'GRUPOS') {
+        // En modo mundial, el cuadro empieza tras la fase de grupos. 
+        // Usualmente la fase de grupos tiene 3 rondas.
+        const maxGroupRound = 3; 
+        partidasFiltradas = partidas.filter(p => (p.rondaNumero || 0) > maxGroupRound);
+        
+        if (partidasFiltradas.length === 0) {
+            container.innerHTML = `<div style="text-align:center; color:gray; padding:3rem;"><i class="fa-solid fa-trophy" style="font-size:3rem; display:block; margin-bottom:1rem; opacity:0.2;"></i>La fase eliminatoria (cuadros) se activará al finalizar la fase de grupos.<br><small>Faltan resultados en los grupos o aún no se ha generado la siguiente fase.</small></div>`;
+            return;
+        }
+    }
+
     if (sistema === 'DOBLE_ELIMINATORIA') {
         const winnersSection = document.createElement('div');
-        winnersSection.innerHTML = '<h3 style="margin-bottom:1rem; color:var(--win-color); border-bottom:1px solid var(--accent-light);">Cuadro de Ganadores (Winners Bracket)</h3>';
+        winnersSection.innerHTML = '<h3 style="margin-bottom:1rem; color:var(--win-color); border-bottom:1px solid var(--accent-light);">Cuadro de Ganadores</h3>';
         const losersSection = document.createElement('div');
-        losersSection.innerHTML = '<h3 style="margin-top:2rem; margin-bottom:1rem; color:var(--loss-color); border-bottom:1px solid var(--accent-light);">Cuadro de Perdedores (Losers Bracket)</h3>';
+        losersSection.innerHTML = '<h3 style="margin-top:2rem; margin-bottom:1rem; color:var(--loss-color); border-bottom:1px solid var(--accent-light);">Cuadro de Perdedores</h3>';
         
         container.appendChild(winnersSection);
-        renderBracketType(partidas, winnersSection, 'WINNERS');
-        
+        renderBracketType(partidasFiltradas, winnersSection, 'WINNERS');
         container.appendChild(losersSection);
-        renderBracketType(partidas, losersSection, 'LOSERS');
+        renderBracketType(partidasFiltradas, losersSection, 'LOSERS');
     } else {
-        renderBracketType(partidas, container, 'SINGLE');
+        renderBracketType(partidasFiltradas, container, 'SINGLE');
     }
 }
 
@@ -1193,20 +1550,20 @@ function renderBracketType(partidas, targetContainer, type) {
             const isBye = p.resultado === 'BYE';
 
             matchDiv.innerHTML = `
-                <div class="bracket-player ${p1Winner ? 'winner' : ''}" onclick="if('${p.blancas?.id}') showPlayerStats('${p.blancas?.id}')" style="cursor:pointer;">
-                    <span style="display:flex; align-items:center; gap:8px;">
-                        <i class="fa-regular fa-user" style="font-size:0.7rem; opacity:0.5;"></i>
-                        ${p.blancas ? p.blancas.username : '<span class="bracket-empty">?</span>'}
-                    </span>
-                    <span class="bracket-score">${p.resultado === 'BYE' ? 'W' : (p1Winner ? '1' : (isDraw ? '½' : '0'))}</span>
-                </div>
-                <div class="bracket-player ${p2Winner ? 'winner' : ''}" onclick="if('${p.negras?.id}') showPlayerStats('${p.negras?.id}')" style="cursor:pointer;">
-                    <span style="display:flex; align-items:center; gap:8px;">
-                        <i class="fa-regular fa-user" style="font-size:0.7rem; opacity:0.5;"></i>
-                        ${p.negras ? p.negras.username : (isBye ? '<span class="bracket-empty">DESCANSA (BYE)</span>' : '<span class="bracket-empty">ESPERANDO...</span>')}
-                    </span>
-                    <span class="bracket-score">${p2Winner ? '1' : (isDraw ? '½' : '0')}</span>
-                </div>
+        <div class="bracket-player ${p1Winner ? 'winner' : ''}" onclick="if('${p.blancas?.id}') showPlayerStats('${p.blancas?.id}')" style="cursor:pointer; ${p1Winner && (p.resultado!=='BYE') ? 'background:rgba(85, 139, 47, 0.15); color:var(--win-color); font-weight:700;' : ''}">
+            <span style="display:flex; align-items:center; gap:8px;">
+                <i class="fa-regular fa-user" style="font-size:0.7rem; opacity:0.5;"></i>
+                ${p.blancas ? p.blancas.username : '<span class="bracket-empty">?</span>'}
+            </span>
+            <span class="bracket-score">${p.resultado === 'BYE' ? 'W' : (p1Winner ? '1' : (isDraw ? '½' : '0'))}</span>
+        </div>
+        <div class="bracket-player ${p2Winner ? 'winner' : ''}" onclick="if('${p.negras?.id}') showPlayerStats('${p.negras?.id}')" style="cursor:pointer; ${p2Winner ? 'background:rgba(85, 139, 47, 0.15); color:var(--win-color); font-weight:700;' : ''}">
+            <span style="display:flex; align-items:center; gap:8px;">
+                <i class="fa-regular fa-user" style="font-size:0.7rem; opacity:0.5;"></i>
+                ${p.negras ? p.negras.username : (isBye ? '<span class="bracket-empty">DESCANSA (BYE)</span>' : '<span class="bracket-empty">ESPERANDO...</span>')}
+            </span>
+            <span class="bracket-score">${p2Winner ? '1' : (isDraw ? '½' : '0')}</span>
+        </div>
             `;
             roundDiv.appendChild(matchDiv);
         });
@@ -1216,7 +1573,60 @@ function renderBracketType(partidas, targetContainer, type) {
 }
 
 window.deleteTournament = async function(id) {
-    if (confirm("¿Eliminar este torneo?")) { await fetchWithAuth(`${window.API_BASE}/torneos/${id}`, { method: 'DELETE' }); showView('dashboard-view'); renderDashboard(); renderTournamentList(); }
+    if (!id) return;
+    if (confirm("¿Estás seguro de que deseas eliminar este torneo permanentemente? Esta acción no se puede deshacer.")) {
+        try {
+            const res = await fetchWithAuth(`${window.API_BASE}/torneos/${id}`, { method: 'DELETE' });
+            if (res.ok) {
+                showNotification("Torneo eliminado con éxito");
+                showView('dashboard-view');
+                renderTournamentList();
+            } else {
+                alert("No se pudo eliminar el torneo. Es posible que no tengas permisos.");
+            }
+        } catch (e) {
+            console.error("Error deleting tournament:", e);
+        }
+    }
+};
+
+function renderArbiterTools(id) {
+    const arbiterTab = document.querySelector('#tab-arbiter');
+    if (!arbiterTab) return;
+
+    const toolsHtml = `
+        <div class="card" style="border-left: 5px solid var(--accent-color); margin-bottom: 2rem;">
+            <h3><i class="fa-solid fa-screwdriver-wrench"></i> Herramientas de Mantenimiento</h3>
+            <p class="text-muted">Utilice estas herramientas si detecta inconsistencias en los puntos o desempates.</p>
+            <div style="display:flex; gap:15px; margin-top:1rem;">
+                <button class="btn btn-secondary" onclick="recalculateTournamentPoints('${id}')">
+                    <i class="fa-solid fa-sync"></i> Recalcular Puntos y Desempates
+                </button>
+            </div>
+        </div>
+    `;
+    // Solo añadir si no existe
+    if (!arbiterTab.querySelector('.arbiter-tools-container')) {
+        const div = document.createElement('div');
+        div.className = 'arbiter-tools-container';
+        div.innerHTML = toolsHtml;
+        arbiterTab.prepend(div);
+    }
+}
+
+window.recalculateTournamentPoints = async function(id) {
+    if (!confirm("¿Deseas recalcular todos los puntos del torneo? Esto sincronizará la tabla de posiciones con los resultados de las partidas.")) return;
+    try {
+        const res = await fetchWithAuth(`${window.API_BASE}/torneos/${id}/recalculate`, { method: 'POST' });
+        if (res.ok) {
+            showNotification("Puntos recalculados con éxito");
+            renderTournamentDetail(id);
+        } else {
+            showNotification("Error al recalcular puntos", "error");
+        }
+    } catch (e) {
+        console.error("Error recalculate:", e);
+    }
 };
 
 function renderPlayers(inscripciones, estado, tId) {
@@ -1232,10 +1642,92 @@ window.removePlayer = async function(tId, insId) {
     if (confirm("¿Eliminar?")) { await API.deleteInscripcion(tId, insId); renderTournamentDetail(tId); }
 };
 
+function renderTeams(inscripciones) {
+    const container = document.getElementById('teams-list-container');
+    const standingsTable = document.getElementById('team-standings-table');
+    if (!container) return;
+    
+    const teams = {};
+    inscripciones.forEach(ins => {
+        const teamName = ins.usuario?.equipo?.nombre || ins.nombreEquipo || 'Sin Equipo';
+        if (!teams[teamName]) teams[teamName] = { name: teamName, members: [], pts: 0, eloSum: 0 };
+        teams[teamName].members.push(ins);
+        teams[teamName].pts += (ins.puntosAcumulados || 0);
+        teams[teamName].eloSum += (ins.usuario?.eloRating || 0);
+    });
+
+    const teamArray = Object.values(teams).sort((a, b) => b.pts - a.pts);
+
+    if (teamArray.length === 0) {
+        container.innerHTML = '<div style="grid-column: 1/-1; text-align:center; padding:2rem; color:gray;">No hay equipos registrados aún.</div>';
+        if (standingsTable) standingsTable.querySelector('tbody').innerHTML = '<tr><td colspan="5" style="text-align:center;">No hay datos</td></tr>';
+        return;
+    }
+
+    // Populate Standings Table
+    if (standingsTable) {
+        const tbody = standingsTable.querySelector('tbody');
+        tbody.innerHTML = teamArray.map((team, i) => {
+            const avgElo = Math.round(team.eloSum / team.members.length);
+            let pos = `#${i+1}`;
+            let style = '';
+            if(i === 0) { pos = '🥇 Oro'; style = 'background:rgba(251,191,36,0.15); border-left:5px solid #fbbf24; font-weight:bold;'; }
+            else if(i === 1) { pos = '🥈 Plata'; style = 'background:rgba(148,163,184,0.15); border-left:5px solid #94a3b8;'; }
+            else if(i === 2) { pos = '🥉 Bronce'; style = 'background:rgba(180,83,9,0.15); border-left:5px solid #b45309;'; }
+            
+            return `<tr style="${style}">
+                <td>${pos}</td>
+                <td><strong style="color:var(--accent-color);">${team.name}</strong></td>
+                <td>${team.members.length}</td>
+                <td><span style="font-weight:800; color:var(--win-color);">${team.pts}</span></td>
+                <td>${avgElo}</td>
+            </tr>`;
+        }).join('');
+    }
+
+    // Populate Detailed Cards
+    container.innerHTML = teamArray.map(team => {
+        const avgElo = Math.round(team.eloSum / team.members.length);
+
+        return `
+            <div class="card team-card" style="padding: 1.5rem; border-left: 5px solid var(--accent-color); background: var(--surface-card); transition: all 0.3s ease;">
+                <div style="display:flex; justify-content:space-between; align-items:start; margin-bottom: 1rem;">
+                    <h4 style="margin:0; color: var(--accent-color); font-size: 1.2rem;">${team.name}</h4>
+                    <span class="status-badge" style="background: var(--accent-light); color: var(--accent-color);">${team.members.length} Jug.</span>
+                </div>
+                <div style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 1rem;">
+                    <div><i class="fa-solid fa-calculator"></i> ELO Promedio: <strong>${avgElo}</strong></div>
+                    <div><i class="fa-solid fa-star"></i> Puntos Totales: <strong>${team.pts}</strong></div>
+                </div>
+                <div style="display:flex; flex-wrap:wrap; gap:5px;">
+                    ${team.members.map(m => `<span title="ELO: ${m.usuario.eloRating}" style="font-size: 0.75rem; background: var(--surface-color); padding: 2px 8px; border-radius: 10px; border: 1px solid var(--accent-light); cursor:pointer;" onclick="showPlayerStats('${m.usuario.id}')">${m.usuario.username}</span>`).join('')}
+                </div>
+            </div>`;
+    }).join('');
+}
+
 function renderRounds(partidas, estado, tId, sistema, inscripciones) {
+    console.log('renderRounds ejecutado para Torneo:', tId, 'Partidas:', partidas.length);
+    const userStr = localStorage.getItem('currentUser');
+    const user = userStr ? JSON.parse(userStr) : {};
+    const isAdmin = String(user.role || '').toUpperCase() === 'ADMIN';
     const container = document.getElementById('rounds-container');
-    if (!container) return; container.innerHTML = '';
-    if (!partidas.length) { container.innerHTML = '<div style="text-align:center; padding:2rem; color:gray;">No hay partidas aún.</div>'; return; }
+    if (!container) {
+        console.error('No se encontró el contenedor rounds-container');
+        return;
+    }
+    
+    container.innerHTML = '';
+    
+    if (!partidas || partidas.length === 0) {
+        container.innerHTML = `
+            <div style="text-align:center; padding:3rem; color:var(--text-muted); background:var(--surface-color); border-radius:12px; border: 2px dashed var(--accent-light);">
+                <i class="fa-solid fa-chess-board" style="font-size:3rem; margin-bottom:1rem; opacity:0.3;"></i>
+                <p style="font-weight:600; font-size:1.1rem; margin:0;">No hay emparejamientos generados.</p>
+                <p style="font-size:0.9rem; margin-top:0.5rem;">${estado === 'PENDIENTE' ? 'Pulsa "INICIAR TORNEO" para generar la primera ronda.' : 'Esperando que el árbitro genere la ronda.'}</p>
+            </div>`;
+        return;
+    }
     const rounds = {};
     partidas.forEach(p => { const r = p.rondaNumero || 1; if (!rounds[r]) rounds[r] = []; rounds[r].push(p); });
     
@@ -1243,46 +1735,122 @@ function renderRounds(partidas, estado, tId, sistema, inscripciones) {
     const maxRound = Math.max(...roundNums);
 
     roundNums.sort((a, b) => b - a).forEach(rNum => {
-        const isLocked = !isAdmin && ((estado === 'FINALIZADO') || (sistema !== 'ROUND_ROBIN' && rNum < maxRound));
+        // Strict locking: NO ONE changes results if finalized
+        const isLocked = (estado === 'FINALIZADO');
         const div = document.createElement('div');
         div.className = 'round-section mt-4';
         div.style = 'background:var(--surface-card); padding:1.2rem; border-radius:12px; margin-bottom:1.5rem; box-shadow: 0 4px 6px rgba(0,0,0,0.05); border:1px solid var(--accent-light);';
         div.innerHTML = `<h4 style="color:var(--accent-color); border-bottom:2px solid var(--accent-light); padding-bottom:0.5rem; margin-bottom:1rem;">Ronda ${rNum}</h4>`;
-        rounds[rNum].forEach(p => {
-            let bracketInfo = '';
-            let rowStyle = '';
-            if (sistema === 'DOBLE_ELIMINATORIA') {
-                const bLosses = inscripciones.find(ins => ins.usuario.id === p.blancas?.id)?.derrotas || 0;
-                const nLosses = inscripciones.find(ins => ins.usuario.id === p.negras?.id)?.derrotas || 0;
-                if (bLosses === 0 && nLosses === 0) bracketInfo = '<span style="color:#16a34a; font-size:10px;">[GANADORES]</span>';
-                else if (bLosses === 1 && nLosses === 1) { bracketInfo = '<span style="color:#dc2626; font-size:10px;">[PERDEDORES]</span>'; rowStyle = 'background:#fff7f7;'; }
-                else { bracketInfo = '<span style="color:#7c3aed; font-size:10px;">[GRAN FINAL]</span>'; rowStyle = 'background:#f5f3ff;'; }
-            }
-            div.innerHTML += `
-                <div style="display:flex; justify-content:space-between; align-items:center; padding:12px; border-bottom:1px solid #eee; ${rowStyle}">
-                    <div style="flex:2;">
-                        <div>${bracketInfo}</div>
-                        <span style="font-weight:600; cursor:pointer; color:${p.resultado==='1-0'?'#16a34a':'var(--accent-color)'}" onclick="showPlayerStats('${p.blancas?.id}')">${p.blancas?.username || '?'}</span> vs 
-                        <span style="font-weight:600; cursor:pointer; color:${p.resultado==='0-1'?'#16a34a':'var(--accent-color)'}" onclick="showPlayerStats('${p.negras?.id}')">${p.negras?.username || 'ESPERANDO...'}</span>
-                    </div>
-                    <div style="flex:1; text-align:right;">
-                        <select ${isLocked ? 'disabled' : ''} onchange="setResult('${p.id}', this.value)" style="padding:4px; border-radius:6px; font-weight:bold; cursor:pointer; ${isLocked ? 'background:#f1f5f9; cursor:not-allowed;' : ''}">
-                            <option value="P" ${p.resultado==='P'?'selected':''}>P</option>
-                            <option value="1-0" ${p.resultado==='1-0'?'selected':''}>1-0</option>
-                            <option value="0.5-0.5" ${p.resultado==='0.5-0.5'?'selected':''}>½</option>
-                            <option value="0-1" ${p.resultado==='0-1'?'selected':''}>0-1</option>
-                        </select>
-                    </div>
-                </div>`;
-        });
+        if (sistema === 'EQUIPOS' || sistema === 'GRUPOS') {
+            // Group matches by team matchup or group number
+            const groups = {};
+            rounds[rNum].forEach(p => {
+                let key = '';
+                if (sistema === 'EQUIPOS') {
+                    const teamA = p.blancas?.equipo?.nombre || p.blancas?.nombreEquipo || 'Sin Equipo';
+                    const teamB = p.negras?.equipo?.nombre || p.negras?.nombreEquipo || 'Sin Equipo';
+                    key = [teamA, teamB].sort().join(' vs ');
+                } else {
+                    // Buscar el grupo de los jugadores involucrados
+                    const playerIns = inscripciones.find(ins => ins.usuario.id === p.blancas?.id);
+                    key = playerIns?.numeroGrupo ? `Grupo ${playerIns.numeroGrupo}` : 'Fase Eliminatoria';
+                }
+                
+                if (!groups[key]) groups[key] = [];
+                groups[key].push(p);
+            });
+
+            Object.entries(groups).forEach(([groupName, matches]) => {
+                const isGroup = groupName.startsWith('Grupo');
+                div.innerHTML += `
+                    <div style="background: rgba(139, 90, 43, 0.05); padding: 8px 12px; margin-top: 15px; border-radius: 8px; border-left: 4px solid var(--accent-color); font-weight: 700; font-size: 0.9rem; color: var(--accent-color); display: flex; justify-content: space-between; align-items: center;">
+                        <span><i class="fa-solid ${isGroup ? 'fa-layer-group' : 'fa-people-group'}"></i> ${groupName}</span>
+                        <span style="font-size: 0.7rem; opacity: 0.7;">${matches.length} Partidas</span>
+                    </div>`;
+                
+                matches.forEach(p => {
+                    div.innerHTML += renderMatchItem(p, isLocked);
+                });
+            });
+        } else {
+            rounds[rNum].forEach(p => {
+                let bracketInfo = '';
+                if (sistema === 'DOBLE_ELIMINATORIA') {
+                    const bLosses = inscripciones.find(ins => ins.usuario.id === p.blancas?.id)?.derrotas || 0;
+                    const nLosses = inscripciones.find(ins => ins.usuario.id === p.negras?.id)?.derrotas || 0;
+                    if (bLosses === 0 && nLosses === 0) bracketInfo = '<span style="color:#16a34a; font-size:10px;">[GANADORES]</span>';
+                    else if (bLosses === 1 && nLosses === 1) bracketInfo = '<span style="color:#dc2626; font-size:10px;">[PERDEDORES]</span>';
+                    else bracketInfo = '<span style="color:#7c3aed; font-size:10px;">[GRAN FINAL]</span>';
+                }
+                div.innerHTML += renderMatchItem(p, isLocked, bracketInfo);
+            });
+        }
         container.appendChild(div);
     });
 }
 
+// Helper function to render a single match row
+function renderMatchItem(p, isLocked, bracketInfo = '') {
+    const res = p.resultado || 'P';
+    return `
+        <div style="display:flex; justify-content:space-between; align-items:center; padding:12px; border-bottom:1px solid rgba(0,0,0,0.05);">
+            <div style="flex:2;">
+                <div style="margin-bottom: 2px;">${bracketInfo}</div>
+                <span style="font-weight:600; cursor:pointer; color:${res==='1-0'?'#16a34a':'var(--accent-color)'}" onclick="showPlayerStats('${p.blancas?.id}')">${p.blancas?.username || '?'}</span> 
+                <span style="color:var(--text-muted); font-size: 0.8rem; margin: 0 5px;">vs</span> 
+                <span style="font-weight:600; cursor:pointer; color:${res==='0-1'?'#16a34a':'var(--accent-color)'}" onclick="showPlayerStats('${p.negras?.id}')">${p.negras?.username || 'ESPERANDO...'}</span>
+            </div>
+            <div style="flex:1; text-align:right;">
+                <select ${isLocked ? 'disabled' : ''} onchange="setResult('${p.id}', this.value)" style="padding:6px 10px; border-radius:8px; font-weight:bold; border: 1px solid var(--accent-light); background: white; cursor:pointer; ${isLocked ? 'background:#f1f5f9; cursor:not-allowed; opacity: 0.7; border-color:transparent;' : ''}">
+                    <option value="P" ${res==='P'?'selected':''}>P</option>
+                    <option value="1-0" ${res==='1-0'?'selected':''}>1-0</option>
+                    <option value="0.5-0.5" ${res==='0.5-0.5'?'selected':''}>½</option>
+                    <option value="0-1" ${res==='0-1'?'selected':''}>0-1</option>
+                </select>
+            </div>
+        </div>`;
+}
+
 window.setResult = async function(partidaId, resultado) {
-    await fetchWithAuth(`${window.API_BASE}/partidas/${partidaId}/resultado`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ resultado }) });
-    renderTournamentDetail(currentTournamentId);
+    // Usar window.currentTournamentId como fuente de verdad principal
+    const tId = window.currentTournamentId || currentTournamentId;
+    if (!tId) {
+        showNotification("Error: no hay torneo activo seleccionado.", "error");
+        return;
+    }
+    // Sync both variables
+    currentTournamentId = tId;
+    window.currentTournamentId = tId;
+    
+    // Safety check: fetch current tournament state before allowing update
+    const t = await API.getTorneo(tId);
+    if (t && t.estado === 'FINALIZADO') {
+        showNotification("Este torneo ya está finalizado. No se pueden cambiar los resultados.", "error");
+        renderTournamentDetail(tId);
+        return;
+    }
+
+    try {
+        const res = await fetchWithAuth(`${window.API_BASE}/partidas/${partidaId}/resultado`, { 
+            method: 'PUT', 
+            headers: { 'Content-Type': 'application/json' }, 
+            body: JSON.stringify({ resultado }) 
+        });
+        
+        if (!res.ok) {
+            const err = await res.text();
+            showNotification(err || "Error al actualizar resultado", "error");
+        } else {
+            showNotification("✓ Resultado guardado");
+            renderTournamentDetail(tId);
+        }
+    } catch (e) {
+        console.error("Error en setResult:", e);
+        showNotification("Error de conexión al guardar resultado", "error");
+    }
 };
+
+// (Contenido removido por duplicidad)
 
 function renderStandings(inscripciones, estado, sistema) {
     const table = document.getElementById('standings-table');
@@ -1296,8 +1864,37 @@ function renderStandings(inscripciones, estado, sistema) {
     }
 
     if (sistema === 'EQUIPOS') {
-        renderTeamStandings(inscripciones);
+        renderTeams(inscripciones);
         if(exp) exp.innerHTML = `<i class="fa-solid fa-users-viewfinder"></i> Batalla de Equipos. Sumatoria de puntos por club.`;
+        
+        const thead = table.querySelector('thead');
+        thead.innerHTML = `<tr><th>Pos</th><th>Equipo</th><th>Jugadores</th><th>Pts Totales</th><th>Promedio ELO</th></tr>`;
+        const tbody = table.querySelector('tbody');
+        
+        const teams = {};
+        inscripciones.forEach(ins => {
+            const t = ins.nombreEquipo || 'Sin Equipo';
+            if (!teams[t]) teams[t] = { name: t, pts: 0, members: 0, eloSum: 0 };
+            teams[t].pts += (ins.puntosAcumulados || 0);
+            teams[t].members++;
+            teams[t].eloSum += (ins.usuario?.eloRating || 0);
+        });
+        const teamArray = Object.values(teams).sort((a,b) => b.pts - a.pts);
+        tbody.innerHTML = teamArray.map((t, i) => {
+            let pos = `#${i+1}`;
+            let style = '';
+            if(i === 0) { pos = '🥇 Oro'; style = 'background:rgba(251,191,36,0.15); border-left:5px solid #fbbf24; font-weight:bold;'; }
+            else if(i === 1) { pos = '🥈 Plata'; style = 'background:rgba(148,163,184,0.15); border-left:5px solid #94a3b8;'; }
+            else if(i === 2) { pos = '🥉 Bronce'; style = 'background:rgba(180,83,9,0.15); border-left:5px solid #b45309;'; }
+            
+            return `<tr style="${style}">
+                <td>${pos}</td>
+                <td><strong>${t.name}</strong></td>
+                <td>${t.members}</td>
+                <td><span style="color:var(--accent-color); font-weight:800;">${t.pts}</span></td>
+                <td>${Math.round(t.eloSum/t.members)}</td>
+            </tr>`;
+        }).join('');
         return;
     }
 
@@ -1323,86 +1920,141 @@ function renderStandings(inscripciones, estado, sistema) {
 
 function renderGroupStandings(inscripciones) {
     const table = document.getElementById('standings-table');
+    if (!table) return;
     const tbody = table.querySelector('tbody');
     const thead = table.querySelector('thead');
-    thead.innerHTML = `<tr><th>Grupo</th><th>Jugador</th><th>Pts</th><th>Victoria</th><th>Empate</th><th>Derrota</th></tr>`;
+    if (!tbody || !thead) return;
     
-    // Agrupar
+    thead.innerHTML = `<tr>
+        <th style="width:90px">Grupo</th>
+        <th>Jugador</th>
+        <th style="text-align:center">Pts</th>
+        <th style="text-align:center">V</th>
+        <th style="text-align:center">E</th>
+        <th style="text-align:center">D</th>
+        <th style="text-align:center">Estado</th>
+    </tr>`;
+    
+    // Agrupar inscripciones por número de grupo
     const grupos = {};
     inscripciones.forEach(ins => {
-        const g = ins.numeroGrupo || 'S/G';
-        if(!grupos[g]) grupos[g] = [];
+        const g = ins.numeroGrupo != null ? ins.numeroGrupo : 'Sin Grupo';
+        if (!grupos[g]) grupos[g] = [];
         grupos[g].push(ins);
     });
 
     let html = '';
-    Object.keys(grupos).sort().forEach(g => {
-        const members = grupos[g].sort((a,b) => b.puntosAcumulados - a.puntosAcumulados);
+    const sortedKeys = Object.keys(grupos).sort((a, b) => {
+        // Numeric sort if possible
+        const na = parseInt(a), nb = parseInt(b);
+        return isNaN(na) ? 1 : isNaN(nb) ? -1 : na - nb;
+    });
+
+    sortedKeys.forEach(g => {
+        const members = [...grupos[g]].sort((a, b) => {
+            const ptsDiff = (b.puntosAcumulados || 0) - (a.puntosAcumulados || 0);
+            if (ptsDiff !== 0) return ptsDiff;
+            return (b.sonnebornBerger || 0) - (a.sonnebornBerger || 0);
+        });
+        
         members.forEach((ins, i) => {
-            const isTop = i < 2; // Resaltar los top 2 que pasan
-            html += `<tr style="${isTop ? 'background:rgba(22,163,74,0.05); border-left:4px solid #16a34a;' : ''}">
-                <td>${i === 0 ? `<strong>Grupo ${g}</strong>` : ''}</td>
-                <td><span style="font-weight:600;">${ins.usuario.username}</span> ${i===0?'👑':''}</td>
-                <td><span style="color:var(--accent-color); font-weight:800;">${ins.puntosAcumulados}</span></td>
-                <td>${ins.victorias}</td>
-                <td>${ins.empates}</td>
-                <td>${ins.derrotas}</td>
+            const isQualifier = i < 2 && g !== 'Sin Grupo';
+            const pts = ins.puntosAcumulados || 0;
+            
+            html += `<tr style="
+                ${isQualifier ? 'background: rgba(22, 163, 74, 0.10);' : ''}
+                ${isQualifier ? 'border-left: 4px solid #16a34a;' : 'border-left: 4px solid transparent;'}
+                transition: background 0.2s;
+            ">
+                <td>${i === 0 
+                    ? `<span style="background:var(--accent-color); color:white; padding:3px 9px; border-radius:6px; font-size:0.72rem; font-weight:700; letter-spacing:0.5px;">G${g}</span>` 
+                    : '<span style="opacity:0;">·</span>'}
+                </td>
+                <td style="${isQualifier ? 'color:#15803d; font-weight:700;' : ''}">
+                    ${i < 2 && g !== 'Sin Grupo' ? '<i class="fa-solid fa-arrow-up" style="color:#16a34a; font-size:0.7rem;"></i> ' : ''}
+                    ${ins.usuario.username}
+                </td>
+                <td style="text-align:center">
+                    <span style="display:inline-block; min-width:32px; background:${pts > 0 ? 'rgba(22,163,74,0.15)' : 'transparent'}; color:${pts > 0 ? '#15803d' : 'var(--text-muted)'}; font-weight:800; border-radius:4px; padding:2px 6px;">${pts}</span>
+                </td>
+                <td style="text-align:center; color:#16a34a; font-weight:600;">${ins.victorias || 0}</td>
+                <td style="text-align:center; color:#64748b;">${ins.empates || 0}</td>
+                <td style="text-align:center; color:#dc2626;">${ins.derrotas || 0}</td>
+                <td style="text-align:center;">
+                    ${isQualifier 
+                        ? '<span style="font-size:0.7rem; background:#16a34a; color:white; padding:2px 6px; border-radius:4px;">CLASIFICA</span>' 
+                        : (g !== 'Sin Grupo' && i >= 2 ? '<span style="font-size:0.7rem; background:#64748b; color:white; padding:2px 6px; border-radius:4px;">ELIMINADO</span>' : '')}
+                </td>
             </tr>`;
         });
-        html += `<tr style="height:10px; background:transparent;"><td colspan="6"></td></tr>`;
+        // Separator between groups
+        html += `<tr><td colspan="7" style="padding:4px; border:none; background: var(--accent-light); opacity:0.3;"></td></tr>`;
     });
     tbody.innerHTML = html;
 }
 
-function renderTeamStandings(inscripciones) {
-    const table = document.getElementById('standings-table');
-    const tbody = table.querySelector('tbody');
-    const thead = table.querySelector('thead');
-    thead.innerHTML = `<tr><th>Pos</th><th>Equipo / Club</th><th>Jugadores</th><th>Pts Totales</th></tr>`;
-
-    const teams = {};
-    inscripciones.forEach(ins => {
-        const t = ins.nombreEquipo || 'Independiente';
-        if(!teams[t]) teams[t] = { pts: 0, count: 0, members: [] };
-        teams[t].pts += ins.puntosAcumulados;
-        teams[t].count++;
-        teams[t].members.push(ins.usuario.username);
-    });
-
-    const sortedTeams = Object.keys(teams).sort((a,b) => teams[b].pts - teams[a].pts);
-    
-    tbody.innerHTML = sortedTeams.map((tName, i) => {
-        const team = teams[tName];
-        let pos = `#${i+1}`;
-        let style = '';
-        if(i === 0) { pos = '🏆 Winner'; style = 'background:rgba(251,191,36,0.1); border-left:5px solid #fbbf24; font-weight:bold;'; }
-        
-        return `<tr style="${style}">
-            <td>${pos}</td>
-            <td><div style="font-weight:700; color:var(--accent-color);">${tName}</div></td>
-            <td style="font-size:0.8rem; color:var(--text-muted);">${team.count} jugadores</td>
-            <td><span style="font-size:1.1rem; font-weight:800; color:var(--win-color);">${team.pts}</span></td>
-        </tr>`;
-    }).join('');
-}
+// (Contenido removido por duplicidad, la función renderTeams principal está en la línea 1556)
 
 window.openAddPlayerModal = async function(mode) {
     const modal = document.getElementById('add-player-modal');
     if (!modal) return;
+    
+    const t = await API.getTorneo(currentTournamentId);
+    const tabs = document.getElementById('add-player-tabs');
+    const teamTabBtn = document.getElementById('tab-btn-equipos');
+    
+    if (tabs) tabs.style.display = 'flex';
+    if (teamTabBtn) teamTabBtn.style.display = (t.sistemaJuego === 'EQUIPOS') ? 'inline-block' : 'none';
+
     document.getElementById('add-player-mode').value = mode;
     togglePlayerTab(mode);
+
+    // Hide other tabs if registering teams to avoid reCAPTCHA errors and confusion
+    const existBtn = document.getElementById('tab-btn-existente');
+    const nuovoBtn = document.getElementById('tab-btn-nuevo');
+    const teamBtn = document.getElementById('tab-btn-equipos');
+    
+    if (mode === 'equipos') {
+        if(existBtn) existBtn.style.display = 'none';
+        if(nuovoBtn) nuovoBtn.style.display = 'none';
+        if(teamBtn) teamBtn.style.display = 'inline-block';
+        document.getElementById('add-player-modal-title').textContent = "Inscribir Equipo";
+    } else {
+        if(existBtn) existBtn.style.display = 'inline-block';
+        if(nuovoBtn) nuovoBtn.style.display = 'inline-block';
+        if(teamBtn) teamBtn.style.display = 'none';
+        document.getElementById('add-player-modal-title').textContent = "Inscribir Jugador";
+    }
+
     if (mode === 'existente') {
         const users = await API.getUsuarios();
         const playersOnly = users.filter(u => String(u.role || '').toUpperCase() !== 'ADMIN');
         const select = document.getElementById('form-p-select');
         if (select) select.innerHTML = playersOnly.map(u => `<option value="${u.id}">${u.username} [ELO: ${u.eloRating}]</option>`).join('');
+    } else if (mode === 'equipos') {
+        const users = await API.getUsuarios();
+        const teams = [...new Set(users.map(u => u.nombreEquipo).filter(n => n))].sort();
+        const select = document.getElementById('form-team-select');
+        if (select) select.innerHTML = '<option value="">-- Seleccionar Equipo --</option>' + 
+            teams.map(t => `<option value="${t}">${t}</option>`).join('');
     }
     modal.classList.add('active');
 };
 
 window.togglePlayerTab = function(tab) {
-    document.getElementById('tab-existente-content').style.display = (tab === 'existente') ? 'block' : 'none';
-    document.getElementById('tab-nuevo-content').style.display = (tab === 'nuevo') ? 'block' : 'none';
+    document.getElementById('add-player-mode').value = tab;
+    const contentExistente = document.getElementById('tab-existente-content');
+    const contentNuevo = document.getElementById('tab-nuevo-content');
+    const contentEquipos = document.getElementById('tab-equipos-content');
+    
+    if(contentExistente) contentExistente.style.display = (tab === 'existente') ? 'block' : 'none';
+    if(contentNuevo) contentNuevo.style.display = (tab === 'nuevo') ? 'block' : 'none';
+    if(contentEquipos) contentEquipos.style.display = (tab === 'equipos') ? 'block' : 'none';
+    
+    document.querySelectorAll('#add-player-tabs .tab-btn').forEach(btn => {
+        btn.classList.remove('active');
+        if(btn.id === `tab-btn-${tab}`) btn.classList.add('active');
+    });
 };
 
 async function renderUsers() {
@@ -1450,7 +2102,32 @@ window.openEditEloModal = function(id, name, elo) {
     openModal('edit-elo-modal');
 };
 
-window.startTournament = async function(tId) { await API.startTorneo(tId); renderTournamentDetail(tId); };
+window.startTournament = async function(tId) { 
+    const t = await API.getTorneo(tId);
+    if (!t) return;
+
+    if (t.sistemaJuego === 'EQUIPOS') {
+        const inscRes = await fetchWithAuth(`${window.API_BASE}/torneos/${tId}/inscripciones`);
+        const inscripciones = await inscRes.json();
+        const teams = new Set(inscripciones.map(i => i.nombreEquipo).filter(name => name && name.trim() !== ""));
+        if (teams.size < 2) {
+            alert("Para un torneo por EQUIPOS necesitas al menos 2 equipos con nombre asignado.");
+            return;
+        }
+    } else {
+        const inscRes = await fetchWithAuth(`${window.API_BASE}/torneos/${tId}/inscripciones`);
+        const inscripciones = await inscRes.json();
+        if (inscripciones.length < 2) {
+            alert("Necesitas al menos 2 jugadores para iniciar el torneo.");
+            return;
+        }
+    }
+
+    const res = await API.startTorneo(tId); 
+    if (res) {
+        renderTournamentDetail(tId);
+    }
+};
 window.completeTournament = async function(id) { 
     if (confirm("¿Finalizar el torneo y actualizar rankings?")) { 
         await API.finalizarTorneo(id); 
@@ -1473,8 +2150,10 @@ function connectWebSocket() {
 }
 
 window.toggleRoundsInput = function(val) {
-    const group = document.getElementById('group-t-rondas');
-    if (group) group.style.display = (val === 'SUIZO') ? 'block' : 'none';
+    const groupRondas = document.getElementById('group-t-rondas');
+    const groupTableros = document.getElementById('group-t-tableros');
+    if (groupRondas) groupRondas.style.display = (val === 'SUIZO' || val === 'EQUIPOS') ? 'block' : 'none';
+    if (groupTableros) groupTableros.style.display = (val === 'EQUIPOS') ? 'block' : 'none';
 };
 
 async function renderGlobalRanking() {
@@ -1739,6 +2418,10 @@ window.loadPGN = function() {
         analysisBoard.position(analysisGame.fen());
         playChessSound('move');
         updateAnalysisUI();
+        // Iniciar análisis automáticamente al cargar
+        setTimeout(() => {
+            if (window.runFullAnalysis) window.runFullAnalysis();
+        }, 500);
     } else {
         alert('Error: PGN no válido.');
     }
@@ -1924,6 +2607,12 @@ function updateAnalysisUI() {
             moveList.innerHTML += moveRow;
         }
         moveList.scrollTop = moveList.scrollHeight;
+        
+        // Auto-scroll to highlighted move if not at bottom
+        const activeMove = moveList.querySelector(`[style*="${highlight}"]`);
+        if (activeMove) {
+            activeMove.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+        }
     }
 
     updateOpeningExplorer(analysisGame.fen());
@@ -2000,6 +2689,16 @@ window.runFullAnalysis = async function() {
         return new Promise(resolve => {
             let lastCp = 0;
             let lastMate = null;
+            let resolved = false;
+            
+            const timeout = setTimeout(() => {
+                if (!resolved) {
+                    resolved = true;
+                    stockfishWorker.removeEventListener('message', handler);
+                    resolve(lastCp);
+                }
+            }, 5000); // 5s safety timeout
+
             const handler = function(event) {
                 const line = event.data;
                 if (line.includes('info depth') && line.includes('score')) {
@@ -2008,6 +2707,9 @@ window.runFullAnalysis = async function() {
                     if (cpMatch) lastCp = parseInt(cpMatch[1]) / 100.0;
                     if (mateMatch) lastMate = parseInt(mateMatch[1]);
                 } else if (line.includes('bestmove')) {
+                    if (resolved) return;
+                    resolved = true;
+                    clearTimeout(timeout);
                     stockfishWorker.removeEventListener('message', handler);
                     // if mate, represent as a large centipawn value
                     if (lastMate !== null) {
@@ -2038,40 +2740,45 @@ window.runFullAnalysis = async function() {
         if (progEl) progEl.textContent = progress;
 
         tempGame.move(currentHistory[i]);
-        let currentEval = await analyzeFen(tempGame.fen(), 10); // Lower depth for speed but better feedback
+        let currentEval = await analyzeFen(tempGame.fen(), 14); // Más profundidad para evitar falsos positivos
         
         const isWhiteToMove = tempGame.turn() === 'w';
         let normalizedEval = isWhiteToMove ? currentEval : -currentEval;
         
-        let evalDiff;
+        // CPL = centipawn loss (in pawns). Positive prevEval = advantage for player who moved.
+        let cpl = 0; // centipawn loss in pawn units
         if (i % 2 === 0) { // White just moved
-            evalDiff = normalizedEval - prevEval;
+            // prevEval was from White's perspective; after White's move, new normalized eval
+            cpl = Math.max(0, prevEval - normalizedEval); // loss of advantage
         } else { // Black just moved
-            evalDiff = -(normalizedEval - prevEval);
+            cpl = Math.max(0, -prevEval - (-normalizedEval)); // loss from Black's perspective
         }
-        
+        const cplCp = cpl * 100; // convert to centipawns
+
         let category = 'book';
         let icon = 'book';
         
-        if (i < 4) { 
+        if (i < 6) { 
+            // Primeros 3 movimientos por bando = teoría de apertura (Book)
             category = 'book'; icon = 'book';
-        } else if (evalDiff < -3.0) {
+        } else if (cplCp > 500) { // Blunder (??) > 500 cp
             category = 'blunder'; icon = 'blunder';
-        } else if (evalDiff < -1.5) {
+        } else if (cplCp > 200) { // Mistake (?) 200–500 cp
             category = 'mistake'; icon = 'mistake';
-        } else if (evalDiff < -0.8) {
+        } else if (cplCp > 100) { // Inaccuracy (?!) 100–200 cp
             category = 'inaccuracy'; icon = 'inaccuracy';
-        } else if (evalDiff < -0.3) {
+        } else if (cplCp > 50) { // Good 50–100 cp
             category = 'good'; icon = 'good';
-        } else if (evalDiff > 1.0 && currentEval > 2.0 && prevEval < 0.5) {
-            category = 'brilliant'; icon = 'brilliant';
-        } else if (evalDiff >= -0.3 && evalDiff <= 0.3) {
-            category = 'best'; icon = 'best';
-        } else {
+        } else if (cplCp > 20) { // Excellent 20–50 cp
             category = 'excellent'; icon = 'excellent';
+        } else if (cpl < 0 && Math.abs(cpl) > 1.0 && prevEval < 0) {
+            // Brilliant: se recupera ventaja o invierte posición (sacrificio correcto)
+            category = 'brilliant'; icon = 'brilliant';
+        } else { // Best / Best Move 0–20 cp
+            category = 'best'; icon = 'best';
         }
         
-        moveEvaluations[i] = { icon: icon, diff: evalDiff };
+        moveEvaluations[i] = { icon: icon, diff: -cpl, cpl: cplCp };
         prevEval = normalizedEval;
         
         if (bestMoveSpan) {
@@ -2105,8 +2812,17 @@ function updateEvalBar(cp) {
 }
 
 let lastExplorerFen = "";
+let lastKnownOpening = "";
 async function updateOpeningExplorer(fen) {
-    const fenBase = fen.split(' ').slice(0, 4).join(' '); // Ignore halfmove/fullmove for explorer
+    const fenParts = fen.split(' ');
+    const moveNumber = parseInt(fenParts[fenParts.length - 1]);
+    const isInitialPosition = fen.startsWith('rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq -');
+
+    if (isInitialPosition || moveNumber <= 1) {
+        lastKnownOpening = "";
+    }
+
+    const fenBase = fenParts.slice(0, 4).join(' '); 
     if (fenBase === lastExplorerFen) return;
     lastExplorerFen = fenBase;
 
@@ -2115,31 +2831,58 @@ async function updateOpeningExplorer(fen) {
     if (!nameEl || !candEl) return;
 
     // Use a clean FEN (no move counts) for better matching
-    const fenParts = fen.split(' ');
     const cleanFen = fenParts.slice(0, 4).join(' ');
 
     try {
         console.log('Fetching opening for FEN:', cleanFen);
+        
         // Intentar primero con la base de datos de Maestros
         let res = await fetch(`https://explorer.lichess.ovh/masters?fen=${encodeURIComponent(cleanFen)}`, {
             headers: { 'Accept': 'application/json' }
         });
-        if (!res.ok) throw new Error('Lichess API error');
-        let data = await res.json();
-
-        // Si no hay datos, intentar con la base de datos general de Lichess
-        if ((!data.opening || !data.moves || data.moves.length === 0) && parseInt(fenParts[5]) < 50) {
-            res = await fetch(`https://explorer.lichess.ovh/lichess?fen=${encodeURIComponent(cleanFen)}`);
-            if (res.ok) data = await res.json();
+        
+        let data = null;
+        if (res.ok) {
+            data = await res.json();
         }
 
-        if (data.opening) {
+        // Si no hay datos o falló, intentar con la base de datos general de Lichess (más amplia)
+        if (!data || !data.opening || !data.moves || data.moves.length === 0) {
+            res = await fetch(`https://explorer.lichess.ovh/lichess?fen=${encodeURIComponent(cleanFen)}`);
+            if (res.ok) {
+                data = await res.json();
+            }
+        }
+
+        // Theory Meter Logic
+        const theoryContainer = document.getElementById('theory-container');
+        const theoryPercent = document.getElementById('theory-percent');
+        const theoryBar = document.getElementById('theory-bar');
+
+        if (data && theoryContainer && theoryPercent && theoryBar) {
+            const totalGames = (data.white || 0) + (data.draws || 0) + (data.black || 0);
+            let percent = 0;
+            if (totalGames > 0) {
+                // Escala logarítmica para teoría (10,000+ partidas = 100%)
+                percent = Math.min(100, Math.round((Math.log10(totalGames + 1) / 4) * 100));
+            }
+            theoryContainer.style.display = 'block';
+            theoryPercent.textContent = percent + '%';
+            theoryBar.style.width = percent + '%';
+        } else if (theoryContainer) {
+            theoryContainer.style.display = 'none';
+        }
+
+        if (data && data.opening) {
             nameEl.textContent = data.opening.name;
+            lastKnownOpening = data.opening.name;
+        } else if (lastKnownOpening) {
+            nameEl.textContent = lastKnownOpening + " (Var.)";
         } else {
             nameEl.textContent = "Teoría desconocida / Final de partida";
         }
 
-        if (data.moves && data.moves.length > 0) {
+        if (data && data.moves && data.moves.length > 0) {
             candEl.innerHTML = data.moves.slice(0, 3).map(m => `
                 <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.85rem; background: rgba(139, 90, 43, 0.05); padding: 6px 10px; border-radius: 6px; border: 1px solid rgba(139, 90, 43, 0.1);">
                     <span style="font-weight: 700; color: var(--accent-color);">${m.san}</span>
@@ -2180,29 +2923,39 @@ function triggerConfetti() {
 function updateAccuracySummary() {
     const counts = {
         brilliant: 0, best: 0, excellent: 0, good: 0,
-        inaccuracy: 0, mistake: 0, blunder: 0, book: 0, excellent: 0
+        inaccuracy: 0, mistake: 0, blunder: 0, book: 0
     };
     
-    let totalAccuracy = 0;
+    let totalCpl = 0;      // sum of centipawn losses
     let movesToCount = 0;
 
     moveEvaluations.forEach(ev => {
-        if (!ev) return;
+        if (!ev || ev.icon === 'book') return; // Skip book moves for stats
         counts[ev.icon] = (counts[ev.icon] || 0) + 1;
-        
-        let acc = 100;
-        if (ev.diff < 0) {
-            acc = Math.max(0, 100 + (ev.diff * 15)); 
-        }
-        totalAccuracy += acc;
+        totalCpl += (ev.cpl || 0);
         movesToCount++;
     });
+    // Also count book separately
+    moveEvaluations.forEach(ev => { if (ev && ev.icon === 'book') counts.book++; });
 
     if (movesToCount === 0) return;
 
-    const avgAccuracy = totalAccuracy / movesToCount;
-    // Heuristic: Accuracy * 30 - some offset
-    const predictedElo = Math.max(400, Math.floor(avgAccuracy * 28));
+    const acpl = totalCpl / movesToCount; // Average Centipawn Loss
+
+    // Accuracy % using Lichess-style formula: acc = 103.1668 * exp(-0.04354 * acpl) - 3.1668
+    // Clamped to [0, 100]
+    let avgAccuracy = Math.max(0, Math.min(100, 103.1668 * Math.exp(-0.04354 * acpl) - 3.1668));
+
+    // ELO Estimado basado en ACPL (referencias reales Stockfish/Chess.com)
+    let predictedElo;
+    if      (acpl < 20)  predictedElo = 2600 + Math.round((20 - acpl) * 15);  // GM+
+    else if (acpl < 40)  predictedElo = Math.round(2600 - ((acpl - 20) / 20) * 400); // 2200–2600
+    else if (acpl < 70)  predictedElo = Math.round(2200 - ((acpl - 40) / 30) * 400); // 1800–2200
+    else if (acpl < 100) predictedElo = Math.round(1800 - ((acpl - 70) / 30) * 300); // 1500–1800
+    else if (acpl < 150) predictedElo = Math.round(1500 - ((acpl - 100) / 50) * 300); // 1200–1500
+    else if (acpl < 250) predictedElo = Math.round(1200 - ((acpl - 150) / 100) * 300); // 900–1200
+    else                 predictedElo = Math.max(400, Math.round(900 - (acpl - 250) * 1.5)); // <900
+    predictedElo = Math.round(predictedElo);
 
     // Best Moments Logic
     const bestMoments = [];
@@ -2218,10 +2971,10 @@ function updateAccuracySummary() {
         if (bestMoments.length > 0) {
             reel.style.display = 'block';
             reelList.innerHTML = bestMoments.map(m => `
-                <div onclick="moveAnalysisAbsolute(${m.idx})" style="flex-shrink: 0; width: 80px; background: rgba(255,255,255,0.1); border: 1px solid ${m.ev.icon === 'brilliant' ? '#fbbf24' : 'rgba(255,255,255,0.2)'}; padding: 8px; border-radius: 8px; cursor: pointer; text-align: center; transition: transform 0.2s;">
+                <div onclick="moveAnalysisAbsolute(${m.idx})" style="flex-shrink: 0; width: 80px; background: rgba(255,255,255,0.1); border: 1px solid ${m.ev.icon === 'brilliant' ? '#fbbf24' : 'rgba(255,255,255,0.2)'}; padding: 8px; border-radius: 8px; cursor: pointer; text-align: center; transition: transform 0.2s; box-shadow: 0 4px 10px rgba(0,0,0,0.2);">
                     <img src="img/${m.ev.icon}.svg" style="height: 20px; margin-bottom: 4px;">
                     <div style="font-weight: 800; font-size: 0.9rem; color: white;">${m.san}</div>
-                    <div style="font-size: 0.6rem; opacity: 0.7; text-transform: uppercase;">Mover ${Math.floor(m.idx/2)+1}</div>
+                    <div style="font-size: 0.6rem; opacity: 0.7; text-transform: uppercase;">Mov. ${Math.floor(m.idx/2)+1}</div>
                 </div>
             `).join('');
             
@@ -2272,7 +3025,29 @@ function updateAccuracySummary() {
         document.getElementById('stat-inaccuracy').textContent = counts.inaccuracy || 0;
         document.getElementById('stat-mistake').textContent = counts.mistake || 0;
         document.getElementById('stat-blunder').textContent = counts.blunder || 0;
-        document.getElementById('performance-elo').textContent = predictedElo + ' ELO';
+        const eloMain = document.getElementById('performance-elo-main');
+        const eloFooter = document.getElementById('performance-elo-footer');
+        if (eloMain) eloMain.textContent = predictedElo + ' ELO';
+        if (eloFooter) eloFooter.textContent = predictedElo + ' ELO';
+        
+        // ACPL display
+        const acplEl = document.getElementById('stat-acpl');
+        if (acplEl) acplEl.textContent = Math.round(acpl) + ' cp';
+        
+        // ELO level label
+        const levelLabel = document.getElementById('elo-level-label');
+        if (levelLabel) {
+            let label = '';
+            if (predictedElo >= 2600) label = '♟ Gran Maestro';
+            else if (predictedElo >= 2400) label = '♟ Maestro Internacional';
+            else if (predictedElo >= 2200) label = '♟ Maestro FIDE';
+            else if (predictedElo >= 1800) label = '⚡ Experto / Candidato';
+            else if (predictedElo >= 1500) label = '📊 Avanzado';
+            else if (predictedElo >= 1200) label = '📈 Intermedio';
+            else if (predictedElo >= 900)  label = '🌱 Principiante Avanzado';
+            else                           label = '🔰 Principiante';
+            levelLabel.textContent = label;
+        }
 
         // Update Heatmap colors
         document.getElementById('phase-opening').style.background = getPhaseColor(phases.opening);
@@ -2432,5 +3207,297 @@ window.playChessSound = function(type) {
     if (sound) {
         sound.currentTime = 0;
         sound.play().catch(() => {});
+    }
+};
+
+// TEAMS MANAGEMENT
+async function renderTeamsManagementView() {
+    const container = document.getElementById('global-teams-list');
+    if (!container) return;
+
+    container.innerHTML = '<div style="grid-column: 1/-1; text-align:center;"><i class="fa-solid fa-spinner fa-spin"></i> Cargando equipos...</div>';
+
+    try {
+        const users = await API.getUsuarios();
+        const players = users.filter(u => String(u.role).toUpperCase() !== 'ADMIN');
+        
+        const teams = {};
+        players.forEach(p => {
+            const tName = p.nombreEquipo || 'Sin Equipo';
+            if (!teams[tName]) teams[tName] = { name: tName, members: [], eloSum: 0 };
+            teams[tName].members.push(p);
+            teams[tName].eloSum += (p.eloRating || 0);
+        });
+
+        const teamArray = Object.values(teams).sort((a, b) => b.members.length - a.members.length);
+        
+        // Find players without team and move to front if desired, but here we'll create a special card
+        const noTeam = teams['Sin Equipo'] || { name: 'Sin Equipo', members: [], eloSum: 0 };
+        const otherTeams = teamArray.filter(t => t.name !== 'Sin Equipo');
+
+        const totalTeamsStat = document.getElementById('stat-total-teams');
+        if(totalTeamsStat) totalTeamsStat.textContent = otherTeams.length;
+
+        let html = '';
+        
+        // Restore Free Agents Section
+        if (noTeam.members.length > 0) {
+            html += `
+                <div class="card" style="grid-column: 1 / -1; border-top: 6px solid var(--accent-color); background: linear-gradient(135deg, var(--surface-card) 0%, var(--accent-light) 100%); padding: 1.5rem; margin-bottom: 1.5rem; box-shadow: var(--shadow-md);">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
+                        <div>
+                            <h3 style="margin:0; color: var(--accent-color); font-size: 1.3rem;"><i class="fa-solid fa-user-tag"></i> Jugadores Agentes Libres</h3>
+                            <p style="margin:5px 0 0; color: var(--text-muted); font-size: 0.85rem;">Jugadores que aún no han sido asignados a un club.</p>
+                        </div>
+                        <span class="status-badge" style="background:var(--accent-light); color:var(--accent-color); font-weight:700;">${noTeam.members.length} Disponibles</span>
+                    </div>
+                    <div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap:10px;">
+                        ${noTeam.members.map(m => `
+                            <div style="display:flex; justify-content:space-between; align-items:center; background:var(--surface-color); padding:10px; border-radius:8px; border: 1px solid var(--accent-light);">
+                                <div>
+                                    <div style="font-weight:700; font-size:0.9rem;">${m.username}</div>
+                                    <div style="font-size:0.7rem; color:var(--accent-color);">ELO: ${m.eloRating}</div>
+                                </div>
+                                <button class="btn admin-only" style="padding:4px; background:var(--accent-light); color:var(--accent-color); border:none;" onclick="openModal('create-team-modal')" title="Asignar a equipo">
+                                    <i class="fa-solid fa-plus"></i>
+                                </button>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>`;
+        }
+        
+        html += otherTeams.map(team => {
+            const avgElo = Math.round(team.eloSum / (team.members.length || 1));
+            return `
+                <div class="card" style="border-top: 4px solid var(--accent-color); background: var(--surface-card); padding: 1.5rem; display: flex; flex-direction: column; justify-content: space-between;">
+                    <div style="display:flex; justify-content:space-between; align-items:start; margin-bottom:1.5rem;">
+                        <div>
+                            <h4 style="margin:0; color: var(--accent-color); font-size: 1.25rem;">${team.name}</h4>
+                            <div style="font-size:0.85rem; color:var(--text-muted); margin-top:5px;">
+                                <i class="fa-solid fa-users"></i> ${team.members.length} Jugadores Registrados
+                            </div>
+                        </div>
+                        <div style="text-align:right;">
+                            <div style="font-size: 1.25rem; font-weight:800; color:var(--text-main);">${avgElo}</div>
+                            <div style="font-size:0.65rem; text-transform:uppercase; color:var(--text-muted); font-weight:700;">ELO PROMEDIO</div>
+                        </div>
+                    </div>
+                    
+                    <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; border-top: 1px solid var(--accent-light); padding-top:1.5rem;">
+                        <button class="btn btn-secondary" style="font-size:0.85rem; padding: 10px;" onclick="viewTeamStats('${team.name}')">
+                            <i class="fa-solid fa-chart-line"></i> Estadísticas
+                        </button>
+                        <button class="btn btn-primary admin-only" style="font-size:0.85rem; padding: 10px;" onclick="openModal('create-team-modal')">
+                            <i class="fa-solid fa-gear"></i> Gestionar
+                        </button>
+                    </div>
+                </div>`;
+        }).join('');
+
+        container.innerHTML = html;
+
+        // Update modal select too
+        const teamSelect = document.getElementById('form-team-player-select');
+        if(teamSelect) {
+            teamSelect.innerHTML = '<option value="">-- Seleccionar Jugador --</option>' + 
+                players.map(p => `<option value="${p.id}">${p.username} (${p.nombreEquipo || 'Sin Equipo'})</option>`).join('');
+        }
+
+    } catch (e) {
+        console.error('Error renderTeamsManagementView:', e);
+        container.innerHTML = '<div style="color:red; text-align:center;">Error al cargar equipos.</div>';
+    }
+}
+
+window.addPlayerToTeamPrompt = async function(teamName) {
+    // We repurpose the create-team-modal
+    const modal = document.getElementById('create-team-modal');
+    const nameInput = document.getElementById('form-team-name');
+    if (modal && nameInput) {
+        nameInput.value = teamName;
+        // Disable name input if editing existing team
+        nameInput.readOnly = true;
+        openModal('create-team-modal');
+        
+        // When modal closes, reset readOnly
+        const closeBtn = modal.querySelector('.close-btn');
+        const oldOnclick = closeBtn.onclick;
+        closeBtn.onclick = () => {
+            nameInput.readOnly = false;
+            nameInput.value = '';
+            if(oldOnclick) oldOnclick();
+        };
+    }
+};
+
+window.updateUserTeam = async function(userId, teamName, refresh = true) {
+    if (!userId || !teamName) return;
+    try {
+        // 1. Asegurar que el equipo existe en la base de datos
+        const teamRes = await fetchWithAuth(`${window.API_BASE}/equipos`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ nombre: teamName })
+        });
+        
+        if (!teamRes.ok) throw new Error("Error al crear/obtener equipo");
+        const equipo = await teamRes.json();
+
+        // 2. Asignar el usuario al equipo
+        const assignRes = await fetchWithAuth(`${window.API_BASE}/equipos/${equipo.id}/miembros`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ usuarioId: parseInt(userId) })
+        });
+
+        if (assignRes.ok) {
+            // Actualizar localmente si es el usuario actual
+            const currentUser = JSON.parse(localStorage.getItem('currentUser') || '{}');
+            if (String(currentUser.id) === String(userId)) {
+                currentUser.equipo = equipo;
+                localStorage.setItem('currentUser', JSON.stringify(currentUser));
+            }
+            
+            if (refresh) {
+                showNotification(`Asignado al equipo: ${teamName}`);
+                if (currentView === 'teams-management-view') renderTeamsManagementView();
+                else renderTournamentDetail(currentTournamentId);
+            }
+        } else {
+            console.error("Error al asignar equipo al jugador:", userId);
+        }
+    } catch (e) {
+        console.error('Error updateUserTeam:', e);
+        showNotification("Error al procesar equipo", "error");
+    }
+};
+
+// Handle Create Team Form (Modified for Multiple Players)
+document.addEventListener('submit', async (e) => {
+    if (e.target && e.target.id === 'form-create-team') {
+        e.preventDefault();
+        const existingSelect = document.getElementById('select-existing-team');
+        const teamNameInput = document.getElementById('form-team-name');
+        const teamName = (existingSelect && existingSelect.value) || (teamNameInput && teamNameInput.value);
+        
+        const checkboxes = document.querySelectorAll('input[name="team-players"]:checked');
+        
+        if (!teamName) {
+            alert("Por favor, ingrese o seleccione un nombre para el equipo.");
+            return;
+        }
+
+        const playerIds = Array.from(checkboxes).map(cb => cb.value);
+        
+        if (playerIds.length > 0) {
+            showNotification(`Actualizando ${playerIds.length} jugadores...`);
+            for (const id of playerIds) {
+                await updateUserTeam(id, teamName, false);
+            }
+        } else if (!existingSelect.value) {
+            // Just creating a name/concept or empty team? 
+            // In this simplified system, teams exist via players.
+            alert("Selecciona al menos un jugador para formar el equipo.");
+            return;
+        }
+        
+        showNotification(`Equipo "${teamName}" actualizado.`);
+        closeModal('create-team-modal');
+        if (currentView === 'teams-management-view') renderTeamsManagementView();
+        renderDashboard();
+    }
+});
+function initFAB() {
+    const fabHtml = `
+        <div class="fab-container admin-only" id="global-fab">
+            <button class="fab-main" id="fab-trigger" onclick="toggleFAB()">
+                <i class="fa-solid fa-plus"></i>
+            </button>
+            <div class="fab-options" id="fab-options">
+                <button class="fab-item" onclick="openModal('create-tournament-modal')">
+                    <i class="fa-solid fa-trophy"></i>
+                    <span class="fab-label">Nuevo Torneo</span>
+                </button>
+                <button class="fab-item" onclick="openModal('create-team-modal')">
+                    <i class="fa-solid fa-users-viewfinder"></i>
+                    <span class="fab-label">Crear Equipo</span>
+                </button>
+                <button class="fab-item" onclick="showView('players-view')">
+                    <i class="fa-solid fa-user-plus"></i>
+                    <span class="fab-label">Ver Jugadores</span>
+                </button>
+            </div>
+        </div>
+    `;
+    const container = document.createElement('div');
+    container.innerHTML = fabHtml;
+    document.body.appendChild(container);
+}
+
+window.toggleFAB = function() {
+    const btn = document.getElementById('fab-trigger');
+    const options = document.getElementById('fab-options');
+    btn.classList.toggle('active');
+    options.classList.toggle('active');
+};
+window.viewTeamStats = async function(teamName) {
+    try {
+        const users = await API.getUsuarios();
+        const teamMembers = users.filter(u => (u.nombreEquipo || 'Sin Equipo') === teamName);
+        
+        // Calcular estadísticas agregadas
+        const totalElo = teamMembers.reduce((acc, m) => acc + (m.eloRating || 0), 0);
+        const avgElo = Math.round(totalElo / teamMembers.length);
+        
+        let statsHtml = `
+            <div style="text-align:center; margin-bottom:2rem;">
+                <i class="fa-solid fa-shield-halved" style="font-size:4rem; color:var(--accent-color); margin-bottom:1rem;"></i>
+                <h2 style="margin:0; color:var(--primary-color);">${teamName}</h2>
+                <p style="color:var(--text-muted);">Estadísticas Globales del Club</p>
+            </div>
+            
+            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:15px; margin-bottom:2rem;">
+                <div class="card" style="text-align:center; padding:15px; background:var(--accent-light); border:none;">
+                    <div style="font-size:1.5rem; font-weight:800; color:var(--accent-color);">${teamMembers.length}</div>
+                    <div style="font-size:0.7rem; text-transform:uppercase; color:var(--accent-color); font-weight:700;">Jugadores</div>
+                </div>
+                <div class="card" style="text-align:center; padding:15px; background:var(--accent-light); border:none;">
+                    <div style="font-size:1.5rem; font-weight:800; color:var(--accent-color);">${avgElo}</div>
+                    <div style="font-size:0.7rem; text-transform:uppercase; color:var(--accent-color); font-weight:700;">ELO Promedio</div>
+                </div>
+            </div>
+            
+            <h4 style="border-bottom:2px solid var(--accent-light); padding-bottom:8px; margin-bottom:15px;">Plantilla de Jugadores</h4>
+            <div style="display:flex; flex-direction:column; gap:10px; max-height:300px; overflow-y:auto; padding-right:5px;">
+                ${teamMembers.sort((a,b) => b.eloRating - a.eloRating).map(m => `
+                    <div class="tournament-item" style="padding:10px 15px;">
+                        <div>
+                            <div style="font-weight:700;">${m.username}</div>
+                            <div style="font-size:0.75rem; color:var(--text-muted);">ELO: ${m.eloRating}</div>
+                        </div>
+                        <button class="btn btn-primary" style="padding:5px 12px; font-size:0.8rem;" onclick="showPlayerStats('${m.id}')">Ver Perfil</button>
+                    </div>
+                `).join('')}
+            </div>
+        `;
+        
+        const modal = document.getElementById('generic-modal'); // Reutilizando un modal genérico o el de stats
+        if (modal) {
+            document.getElementById('generic-modal-content').innerHTML = statsHtml;
+            openModal('generic-modal');
+        } else {
+            // Fallback: mostrar en un alert/prompt o crear modal al vuelo
+            const detailView = document.getElementById('team-stats-detail-overlay');
+            if(detailView) {
+                detailView.innerHTML = `<div class="modal-content" style="max-width:600px;">
+                    <div style="text-align:right;"><button class="btn" onclick="this.closest('.modal-overlay').style.display='none'">&times;</button></div>
+                    ${statsHtml}
+                </div>`;
+                detailView.style.display = 'flex';
+            }
+        }
+    } catch (e) {
+        console.error("Error viewTeamStats:", e);
     }
 };

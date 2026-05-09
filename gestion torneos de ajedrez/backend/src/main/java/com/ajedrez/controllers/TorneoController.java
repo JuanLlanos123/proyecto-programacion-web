@@ -29,19 +29,20 @@ import java.util.Date;
 
 /**
  * CONTROLADOR DE TORNEOS
- * Gestiona el ciclo de vida de los torneos: creación, inscripciones, emparejamientos y resultados.
+ * Gestiona el ciclo de vida de los torneos: creación, inscripciones,
+ * emparejamientos y resultados.
  */
 @RestController
 @RequestMapping("/api/torneos")
-@CrossOrigin(origins = "*") 
+@CrossOrigin(origins = "*")
 public class TorneoController {
 
     @Autowired
     private TorneoRepository torneoRepository;
-    
+
     @Autowired
     private InscripcionRepository inscripcionRepository;
-    
+
     @Autowired
     private PartidaRepository partidaRepository;
 
@@ -78,7 +79,8 @@ public class TorneoController {
 
     /** Crea un nuevo torneo asignando al organizador logueado */
     @PostMapping
-    public Torneo crearTorneo(@RequestBody Torneo torneo, org.springframework.security.core.Authentication authentication) {
+    public Torneo crearTorneo(@RequestBody Torneo torneo,
+            org.springframework.security.core.Authentication authentication) {
         if (authentication != null && authentication.getName() != null) {
             Usuario u = usuarioRepository.findByUsername(authentication.getName()).orElse(null);
             torneo.setOrganizador(u);
@@ -93,38 +95,44 @@ public class TorneoController {
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
     }
-    
+
     /** Obtiene la lista de inscritos de un torneo específico */
     @GetMapping("/{id}/inscripciones")
     public List<Inscripcion> getInscripciones(@PathVariable Long id) {
         return inscripcionRepository.findByTorneoId(id);
     }
 
-    /** 
-     * Inicia el torneo generando las rondas iniciales mediante el servicio de emparejamiento.
+    /**
+     * Inicia el torneo generando las rondas iniciales mediante el servicio de
+     * emparejamiento.
      * Envía una notificación global vía WebSockets.
      */
     @PostMapping("/{id}/iniciar")
     public ResponseEntity<?> iniciarTorneo(@PathVariable Long id) {
         Torneo torneo = torneoRepository.findById(id).orElse(null);
-        if(torneo == null) return ResponseEntity.notFound().build();
-        
+        if (torneo == null)
+            return ResponseEntity.notFound().build();
+
         List<Inscripcion> inscritos = inscripcionRepository.findByTorneoId(id);
         List<Partida> partidas = emparejamientoService.generarRondas(torneo, inscritos);
-        
+
         // Notificar a todos los clientes conectados vía WebSockets
-        messagingTemplate.convertAndSend("/topic/notifications", "¡Se han generado nuevas rondas en el torneo: " + torneo.getNombre() + "!");
-        
-        // Notificar a cada jugador por email de forma asíncrona para no bloquear la respuesta
+        messagingTemplate.convertAndSend("/topic/notifications",
+                "¡Se han generado nuevas rondas en el torneo: " + torneo.getNombre() + "!");
+
+        // Notificar a cada jugador por email de forma asíncrona para no bloquear la
+        // respuesta
         new Thread(() -> {
-            for(Partida p : partidas) {
-                if(p.getBlancas() != null && p.getBlancas().getEmail() != null) {
+            for (Partida p : partidas) {
+                if (p.getBlancas() != null && p.getBlancas().getEmail() != null) {
                     String opp = (p.getNegras() != null) ? p.getNegras().getUsername() : "DESCANSA (BYE)";
-                    emailService.sendRoundNotification(p.getBlancas().getEmail(), p.getBlancas().getUsername(), torneo.getNombre(), p.getRondaNumero(), opp);
+                    emailService.sendRoundNotification(p.getBlancas().getEmail(), p.getBlancas().getUsername(),
+                            torneo.getNombre(), p.getRondaNumero(), opp);
                 }
-                if(p.getNegras() != null && p.getNegras().getEmail() != null) {
+                if (p.getNegras() != null && p.getNegras().getEmail() != null) {
                     String opp = (p.getBlancas() != null) ? p.getBlancas().getUsername() : "DESCANSA (BYE)";
-                    emailService.sendRoundNotification(p.getNegras().getEmail(), p.getNegras().getUsername(), torneo.getNombre(), p.getRondaNumero(), opp);
+                    emailService.sendRoundNotification(p.getNegras().getEmail(), p.getNegras().getUsername(),
+                            torneo.getNombre(), p.getRondaNumero(), opp);
                 }
             }
         }).start();
@@ -138,20 +146,21 @@ public class TorneoController {
         return partidaRepository.findByTorneoId(id);
     }
 
-    /** 
-     * Inscribe a un jugador en un torneo. 
+    /**
+     * Inscribe a un jugador en un torneo.
      * Si el usuario no existe, lo crea automáticamente (Registro manual).
      * Incluye validación de reCAPTCHA y envío de correo de bienvenida.
      */
     @PostMapping("/{id}/inscripciones")
     public ResponseEntity<?> inscribirJugador(@PathVariable Long id, @RequestBody Map<String, String> body) {
         Torneo torneo = torneoRepository.findById(id).orElse(null);
-        if(torneo == null) return ResponseEntity.notFound().build();
+        if (torneo == null)
+            return ResponseEntity.notFound().build();
 
         String nombre = body.get("nombre");
         String eloStr = String.valueOf(body.get("elo"));
         String recaptchaToken = body.get("recaptchaToken");
-        
+
         // Verificación de seguridad de Google reCAPTCHA
         if (recaptchaToken != null && !recaptchaService.verify(recaptchaToken)) {
             return ResponseEntity.badRequest().body(Map.of("message", "reCAPTCHA inválido"));
@@ -159,18 +168,19 @@ public class TorneoController {
 
         Integer elo = null;
         if (body.containsKey("elo") && body.get("elo") != null) {
-            try { 
-                elo = Integer.parseInt(String.valueOf(body.get("elo"))); 
-            } catch(Exception e) {}
+            try {
+                elo = Integer.parseInt(String.valueOf(body.get("elo")));
+            } catch (Exception e) {
+            }
         }
-        
-        if(elo != null && (elo < 0 || elo > 4000)) {
+
+        if (elo != null && (elo < 0 || elo > 4000)) {
             return ResponseEntity.badRequest().body("El ELO debe estar entre 0 y 4000");
         }
 
         String formattedUsername = nombre.trim();
         Usuario u = usuarioRepository.findByUsername(formattedUsername).orElse(null);
-        
+
         if (u == null) {
             // Flujo de creación de nuevo usuario (Registro rápido desde torneo)
             u = new Usuario();
@@ -185,10 +195,11 @@ public class TorneoController {
             }
             u.setEmail(email);
             u.setPasswordHash(pass);
-            if (elo != null) u.setEloRating(elo);
+            if (elo != null)
+                u.setEloRating(elo);
             u.setRole("PLAYER");
             u = usuarioRepository.save(u);
-            
+
             // Envío de credenciales por email al jugador
             if (body.containsKey("recaptchaToken")) {
                 emailService.sendWelcomeEmail(u.getEmail(), u.getUsername(), pass);
@@ -198,11 +209,11 @@ public class TorneoController {
             final Long userId = u.getId();
             boolean yaInscrito = inscripcionRepository.findByTorneoId(id).stream()
                     .anyMatch(ins -> ins.getUsuario().getId().equals(userId));
-            
+
             if (yaInscrito) {
                 return ResponseEntity.badRequest().body("El jugador ya está inscrito en este torneo.");
             }
-            
+
             // Actualización de ELO si ha cambiado y se proporcionó uno nuevo
             if (elo != null && !u.getEloRating().equals(elo)) {
                 u.setEloRating(elo);
@@ -214,18 +225,21 @@ public class TorneoController {
         Inscripcion inscripcion = new Inscripcion();
         inscripcion.setTorneo(torneo);
         inscripcion.setUsuario(u);
-        if(body.containsKey("nombreEquipo")) {
+        if (body.containsKey("nombreEquipo")) {
             inscripcion.setNombreEquipo(body.get("nombreEquipo"));
         }
-        
+
         return ResponseEntity.ok(inscripcionRepository.save(inscripcion));
     }
 
-    /** Elimina un torneo y todos sus datos relacionados (Partidas, Inscripciones) */
+    /**
+     * Elimina un torneo y todos sus datos relacionados (Partidas, Inscripciones)
+     */
     @DeleteMapping("/{id}")
     @Transactional
     public ResponseEntity<?> eliminarTorneo(@PathVariable Long id) {
-        if (!torneoRepository.existsById(id)) return ResponseEntity.notFound().build();
+        if (!torneoRepository.existsById(id))
+            return ResponseEntity.notFound().build();
         List<Partida> partidas = partidaRepository.findByTorneoId(id);
         partidaRepository.deleteAll(partidas);
         List<Inscripcion> inscripciones = inscripcionRepository.findByTorneoId(id);
@@ -259,39 +273,40 @@ public class TorneoController {
             torneo.setEstado("FINALIZADO");
             torneo.setFechaFin(new Date());
             Torneo saved = torneoRepository.save(torneo);
-            
+
             // Actualizar ELO de participantes
             List<Inscripcion> inscripciones = inscripcionRepository.findByTorneoId(id);
-            for(Inscripcion ins : inscripciones) {
+            for (Inscripcion ins : inscripciones) {
                 Usuario u = ins.getUsuario();
                 int oldElo = u.getEloRating();
                 double pts = ins.getPuntosAcumulados();
                 int matches = ins.getPartidasJugadas();
-                
+
                 if (matches > 0) {
                     // Lógica simple: K=20, Puntos esperados = 0.5 por partida
                     int delta = (int) ((pts - (matches * 0.5)) * 20);
                     int newElo = oldElo + delta;
-                    if(newElo < 100) newElo = 100;
-                    
+                    if (newElo < 100)
+                        newElo = 100;
+
                     u.setEloRating(newElo);
                     usuarioRepository.save(u);
-                    
+
                     // Guardar en historial
                     eloHistoryRepository.save(new EloHistory(u, newElo, "Torneo Finalizado: " + torneo.getNombre()));
                 }
             }
-            
+
             // Notificar vía WebSockets que el torneo terminó
             messagingTemplate.convertAndSend("/topic/notifications", "Torneo Finalizado: " + torneo.getNombre());
-            
+
             // Lógica de Logros (Achievements)
             if (!inscripciones.isEmpty()) {
                 // Encontrar al ganador real usando desempates
                 Inscripcion winnerIns = inscripciones.stream().sorted((a, b) -> {
-                    if (b.getPuntosAcumulados() != a.getPuntosAcumulados()) 
+                    if (b.getPuntosAcumulados() != a.getPuntosAcumulados())
                         return Double.compare(b.getPuntosAcumulados(), a.getPuntosAcumulados());
-                    if (b.getBuchholz() != a.getBuchholz()) 
+                    if (b.getBuchholz() != a.getBuchholz())
                         return Double.compare(b.getBuchholz(), a.getBuchholz());
                     return Double.compare(b.getSonnebornBerger(), a.getSonnebornBerger());
                 }).findFirst().orElse(null);
@@ -309,16 +324,22 @@ public class TorneoController {
     @PutMapping("/{id}")
     public ResponseEntity<?> actualizarTorneo(@PathVariable Long id, @RequestBody Map<String, Object> body) {
         return torneoRepository.findById(id).map(torneo -> {
-            if(body.containsKey("nombre")) torneo.setNombre((String) body.get("nombre"));
-            if(body.containsKey("descripcion")) torneo.setDescripcion((String) body.get("descripcion"));
-            if(body.containsKey("ubicacion")) torneo.setUbicacion((String) body.get("ubicacion"));
-            if(body.containsKey("sistemaJuego")) torneo.setSistemaJuego((String) body.get("sistemaJuego"));
-            if(body.containsKey("maxRondas")) {
+            if (body.containsKey("nombre"))
+                torneo.setNombre((String) body.get("nombre"));
+            if (body.containsKey("descripcion"))
+                torneo.setDescripcion((String) body.get("descripcion"));
+            if (body.containsKey("ubicacion"))
+                torneo.setUbicacion((String) body.get("ubicacion"));
+            if (body.containsKey("sistemaJuego"))
+                torneo.setSistemaJuego((String) body.get("sistemaJuego"));
+            if (body.containsKey("maxRondas")) {
                 Object mr = body.get("maxRondas");
-                if(mr != null) torneo.setMaxRondas(Integer.parseInt(mr.toString()));
-                else torneo.setMaxRondas(null);
+                if (mr != null)
+                    torneo.setMaxRondas(Integer.parseInt(mr.toString()));
+                else
+                    torneo.setMaxRondas(null);
             }
-            
+
             return ResponseEntity.ok(torneoRepository.save(torneo));
         }).orElse(ResponseEntity.notFound().build());
     }
@@ -326,12 +347,22 @@ public class TorneoController {
     /** Exporta el torneo en formato TRF de la FIDE */
     @GetMapping("/{id}/export/fide")
     public ResponseEntity<String> exportarFide(@PathVariable Long id) {
-        if (id == null) return ResponseEntity.badRequest().<String>build();
+        if (id == null)
+            return ResponseEntity.badRequest().<String>build();
         return torneoRepository.findById(id).map(torneo -> {
             String trfData = fideExportService.generateTrf(torneo);
             HttpHeaders headers = new HttpHeaders();
             headers.add("Content-Disposition", "attachment; filename=" + torneo.getNombre().replace(" ", "_") + ".trf");
             return new ResponseEntity<>(trfData, headers, HttpStatus.OK);
         }).orElse(ResponseEntity.notFound().<String>build());
+    }
+
+    /** Recalcula manualmente los puntos y desempates de un torneo */
+    @PostMapping("/{id}/recalculate")
+    public ResponseEntity<?> recalculatePoints(@PathVariable Long id) {
+        return torneoRepository.findById(id).map(torneo -> {
+            emparejamientoService.actualizarPuntos(id);
+            return ResponseEntity.ok("Puntos recalculados");
+        }).orElse(ResponseEntity.notFound().build());
     }
 }

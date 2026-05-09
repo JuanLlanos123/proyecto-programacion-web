@@ -42,6 +42,9 @@ public class Torneo {
     @Column(name = "max_rondas")
     private Integer maxRondas;
 
+    @Column(name = "num_tableros")
+    private Integer numTableros;
+
     public Torneo() {}
 
     public Long getId() { return id; }
@@ -64,4 +67,6 @@ public class Torneo {
     public void setOrganizador(Usuario organizador) { this.organizador = organizador; }
     public Integer getMaxRondas() { return maxRondas; }
     public void setMaxRondas(Integer maxRondas) { this.maxRondas = maxRondas; }
+    public Integer getNumTableros() { return numTableros; }
+    public void setNumTableros(Integer numTableros) { this.numTableros = numTableros; }
 }

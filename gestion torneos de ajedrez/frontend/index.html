@@ -29,6 +29,21 @@
     <!-- QR Code Libraries -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <script src="https://unpkg.com/html5-qrcode"></script>
+    <style>
+        /* Dark Mode Improvements for Teams */
+        body.dark-mode .card.team-card { background: #1e1e1e !important; border-left-color: #d4a373 !important; }
+        body.dark-mode .status-badge { background: #333 !important; color: #d4a373 !important; }
+        body.dark-mode .free-agent-card { background: #1a1a1a !important; border-top-color: #555 !important; }
+        
+        .bracket-round { display: flex; flex-direction: column; justify-content: space-around; min-width: 200px; margin: 0 30px; }
+        .bracket-match { border: 1px solid var(--accent-light); border-radius: 8px; margin: 10px 0; background: white; width: 180px; position: relative; }
+        body.dark-mode .bracket-match { background: #2a2a2a; color: white; }
+        .bracket-player { padding: 5px 10px; display: flex; justify-content: space-between; border-bottom: 1px solid #eee; font-size: 0.85rem; }
+        body.dark-mode .bracket-player { border-bottom-color: #444; }
+        .bracket-player:last-child { border-bottom: none; }
+        .bracket-winner { font-weight: 800; color: var(--win-color); }
+        .bracket-connector { position: absolute; right: -30px; top: 50%; width: 30px; height: 2px; background: var(--accent-light); }
+    </style>
 </head>
 
 <body>
@@ -139,9 +154,9 @@
             <button class="sidebar-collapse-btn" id="sidebar-collapse-btn" onclick="toggleSidebarCollapse()" title="Ocultar menú">
                 <i class="fa-solid fa-chevron-left" id="collapse-icon"></i>
             </button>
-            <div class="brand">
-                <i class="fa-solid fa-chess-knight logo-icon"></i>
-                <h1>Digital Curator</h1>
+            <div class="brand" style="display:flex; flex-direction:column; align-items:start; padding-left: 0.5rem; margin-bottom: 2rem;">
+                <h1 style="font-family:'Playfair Display', serif; font-size:1.6rem; color:var(--primary-color); margin:0;">Grandmaster</h1>
+                <span style="font-size:0.75rem; letter-spacing:3px; color:var(--accent-color); font-weight:700; margin-top:-5px;">HERITAGE</span>
             </div>
 
             <div id="user-profile-box"
@@ -185,6 +200,9 @@
                 <button class="nav-btn" data-target="achievements-view">
                     <i class="fa-solid fa-medal"></i> <span>Insignias y Logros</span>
                 </button>
+                <button class="nav-btn" data-target="teams-management-view">
+                    <i class="fa-solid fa-users-viewfinder"></i> <span>Gestión de Equipos</span>
+                </button>
             </nav>
             <div class="sidebar-footer">
                 <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom: 1rem; padding: 0 0.5rem;" class="user-info">
@@ -221,25 +239,31 @@
 
                 <!-- Advanced Stats Cards -->
                 <div class="stats-grid">
-                    <div class="stat-card stat-accent">
-                        <i class="fa-solid fa-tower-observation text-accent"></i>
+                    <div class="card stat-card" style="border-left: 4px solid var(--accent-color);">
+                        <div style="background: rgba(161, 136, 127, 0.1); width:50px; height:50px; border-radius:50%; display:flex; align-items:center; justify-content:center;">
+                            <i class="fa-solid fa-chess-board" style="color: var(--accent-color); font-size: 1.5rem;"></i>
+                        </div>
                         <div class="stat-info">
                             <span class="stat-value" id="stat-active-tournaments">0</span>
                             <span class="stat-label">Torneos Activos</span>
                         </div>
                     </div>
-                    <div class="stat-card">
-                        <i class="fa-solid fa-users text-primary"></i>
+                    <div class="card stat-card" style="border-left: 4px solid var(--primary-color);">
+                        <div style="background: rgba(62, 39, 35, 0.1); width:50px; height:50px; border-radius:50%; display:flex; align-items:center; justify-content:center;">
+                            <i class="fa-solid fa-users" style="color: var(--primary-color); font-size: 1.5rem;"></i>
+                        </div>
                         <div class="stat-info">
                             <span class="stat-value" id="stat-total-players">0</span>
-                            <span class="stat-label">Total Jugadores Inscritos</span>
+                            <span class="stat-label">Jugadores</span>
                         </div>
                     </div>
-                    <div class="stat-card">
-                        <i class="fa-regular fa-chess-knight text-win"></i>
+                    <div class="card stat-card" style="border-left: 4px solid var(--win-color);">
+                        <div style="background: rgba(76, 175, 80, 0.1); width:50px; height:50px; border-radius:50%; display:flex; align-items:center; justify-content:center;">
+                            <i class="fa-solid fa-chess-knight" style="color: var(--win-color); font-size: 1.5rem;"></i>
+                        </div>
                         <div class="stat-info">
                             <span class="stat-value" id="stat-active-matches">0</span>
-                            <span class="stat-label">Partidas en Curso</span>
+                            <span class="stat-label">Partidas Hoy</span>
                         </div>
                     </div>
                 </div>
@@ -249,6 +273,28 @@
                     <div id="recent-tournaments-list" class="mt-2"
                         style="display:grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 1.5rem;">
                         <!-- Populated via JS -->
+                    </div>
+                </div>
+
+                <div class="mt-4">
+                    <h3 style="display: flex; align-items: center; gap: 10px;">
+                        <i class="fa-solid fa-users-viewfinder" style="color: var(--accent-color);"></i> Clasificación por Equipos (Global)
+                    </h3>
+                    <div class="card mt-2" style="padding: 0; overflow: hidden; border: 1px solid var(--accent-light);">
+                        <table class="data-table" id="dashboard-team-ranking-table">
+                            <thead>
+                                <tr>
+                                    <th>Pos</th>
+                                    <th>Equipo</th>
+                                    <th>Jugadores</th>
+                                    <th>Puntos Acum.</th>
+                                    <th>Promedio ELO</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <!-- Populated via JS -->
+                            </tbody>
+                        </table>
                     </div>
                 </div>
 
@@ -265,6 +311,30 @@
                     <p style="font-size: 0.9rem; color: var(--text-muted); margin-top: 20px; text-align: center; font-style: italic; max-width: 500px;">
                         Desafía tu mente con el problema diario de la comunidad internacional de ajedrez. ¡Mejora tu táctica cada día!
                     </p>
+                </div>
+            </section>
+
+            <!-- TEAMS MANAGEMENT VIEW -->
+            <section id="teams-management-view" class="view">
+                <header class="view-header">
+                    <h2>Gestión Global de Equipos</h2>
+                    <button class="btn btn-primary admin-only" onclick="openModal('create-team-modal')">
+                        <i class="fa-solid fa-plus"></i> Crear Nuevo Equipo
+                    </button>
+                </header>
+
+                <div class="stats-grid mb-4">
+                    <div class="stat-card stat-accent">
+                        <i class="fa-solid fa-users-rectangle" style="color: var(--accent-color);"></i>
+                        <div class="stat-info">
+                            <span class="stat-value" id="stat-total-teams">0</span>
+                            <span class="stat-label">Equipos Activos</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="global-teams-list" class="stats-grid">
+                    <!-- Populated via JS -->
                 </div>
             </section>
 
@@ -288,6 +358,8 @@
                             <option value="SUIZO">Sistema Suizo</option>
                             <option value="ELIMINATORIA">Eliminatoria</option>
                             <option value="DOBLE_ELIMINATORIA">Doble Eliminación</option>
+                            <option value="EQUIPOS">Batalla de Equipos</option>
+                            <option value="GRUPOS">Torneo por Grupos</option>
                         </select>
                         <select id="filter-status" class="form-control" style="width: 180px;">
                             <option value="">Todos los estados</option>
@@ -335,6 +407,7 @@
                 <div class="card mt-4">
                     <div class="tabs">
                         <button class="tab-btn active" data-tab="tab-players">Jugadores</button>
+                        <button class="tab-btn" data-tab="tab-teams" id="btn-tab-teams">Equipos</button>
                         <button class="tab-btn" data-tab="tab-rounds">Emparejamientos</button>
                         <button class="tab-btn" data-tab="tab-standings">Tabla de Posiciones</button>
                         <button class="tab-btn" data-tab="tab-bracket" id="btn-tab-bracket" style="display:none;">Cuadro (Brackets)</button>
@@ -369,6 +442,36 @@
                                 <!-- Populated via JS -->
                             </tbody>
                         </table>
+                    </div>
+
+                    <!-- Teams Tab -->
+                    <div id="tab-teams" class="tab-content">
+                        <div class="d-flex" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1.5rem;">
+                            <h3>Clasificación por Equipos</h3>
+                        </div>
+                        <div class="card mb-4" style="padding: 0; overflow: hidden; border: 1px solid var(--accent-light);">
+                            <table class="data-table" id="team-standings-table">
+                                <thead>
+                                    <tr>
+                                        <th>Pos</th>
+                                        <th>Equipo</th>
+                                        <th>Jugadores</th>
+                                        <th>Puntos Totales</th>
+                                        <th>Promedio ELO</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <!-- Populated via JS -->
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <div class="d-flex" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1.5rem; margin-top: 2rem;">
+                            <h3>Detalle de Equipos / Clubes</h3>
+                        </div>
+                        <div id="teams-list-container" style="display:grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 1.5rem;">
+                            <!-- Populated via JS -->
+                        </div>
                     </div>
 
                     <!-- C. THE PAIRINGS TAB -->
@@ -421,38 +524,62 @@
 
                     <!-- Arbiter Tools Tab -->
                     <div id="tab-arbiter" class="tab-content">
-                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; padding: 10px;">
-                            <div class="card" style="padding: 20px; border: 1px solid var(--accent-light);">
-                                <h4 style="margin-top:0;"><i class="fa-solid fa-qrcode"></i> Control de Presencia</h4>
-                                <p style="font-size:0.85rem; color:var(--text-muted);">Genera y escanea códigos QR para confirmar la asistencia de los jugadores antes de la ronda.</p>
-                                <button class="btn btn-primary" onclick="startQrScanner()">
-                                    Abrir Escáner QR
-                                </button>
-                            </div>
-                            <div class="card" style="padding: 20px; border: 1px solid var(--accent-light); position: relative; overflow: hidden;">
-                                <div style="position: absolute; top: -10px; right: -10px; font-size: 4rem; opacity: 0.05; color: var(--accent-color);"><i class="fa-solid fa-file-export"></i></div>
-                                <h4 style="margin-top:0; color: var(--accent-color);"><i class="fa-solid fa-file-contract"></i> Reporte Oficial FIDE</h4>
-                                <p style="font-size:0.85rem; color:var(--text-muted);">Genera el archivo estándar .TRF compatible con los sistemas de emparejamiento de la FIDE.</p>
-                                <div style="background: rgba(139, 90, 43, 0.05); padding: 10px; border-radius: 8px; margin-bottom: 15px; font-size: 0.75rem; border: 1px dashed var(--accent-light);">
-                                    <i class="fa-solid fa-circle-check"></i> Incluye datos de ELO, resultados y rondas.
+                        <div style="display: flex; flex-direction: column; gap: 2rem;">
+                            <!-- Top Row: Essential Actions -->
+                            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 1.5rem;">
+                                <div class="card" style="padding: 1.5rem; border: 1px solid var(--accent-light); background: linear-gradient(145deg, var(--surface-card), var(--surface-color));">
+                                    <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 1rem;">
+                                        <div style="width: 45px; height: 45px; border-radius: 10px; background: rgba(139, 90, 43, 0.1); display: flex; align-items: center; justify-content: center; color: var(--accent-color); font-size: 1.5rem;">
+                                            <i class="fa-solid fa-qrcode"></i>
+                                        </div>
+                                        <h4 style="margin:0;">Control de Presencia</h4>
+                                    </div>
+                                    <p style="font-size:0.85rem; color:var(--text-muted); margin-bottom: 1.5rem;">Confirma la asistencia física de los jugadores escaneando su código QR personal antes de iniciar la ronda.</p>
+                                    <button class="btn btn-primary" style="width: 100%; justify-content: center;" onclick="startQrScanner()">
+                                        <i class="fa-solid fa-camera"></i> Abrir Escáner de Mesa
+                                    </button>
                                 </div>
-                                <button class="btn btn-primary" style="width: 100%; background: linear-gradient(135deg, #8b5a2b, #5d4037); border: none;" onclick="exportFide(currentTournamentId)">
-                                    <i class="fa-solid fa-download"></i> Exportar Formato FIDE (.trf)
-                                </button>
+
+                                <div class="card" style="padding: 1.5rem; border: 1px solid var(--accent-light); background: linear-gradient(145deg, var(--surface-card), var(--surface-color));">
+                                    <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 1rem;">
+                                        <div style="width: 45px; height: 45px; border-radius: 10px; background: rgba(22, 163, 74, 0.1); display: flex; align-items: center; justify-content: center; color: #16a34a; font-size: 1.5rem;">
+                                            <i class="fa-solid fa-file-export"></i>
+                                        </div>
+                                        <h4 style="margin:0;">Exportación Técnica</h4>
+                                    </div>
+                                    <p style="font-size:0.85rem; color:var(--text-muted); margin-bottom: 1.5rem;">Genera reportes compatibles con sistemas externos (Swiss Manager, FIDE Online) y planillas físicas.</p>
+                                    <div style="display: flex; gap: 10px;">
+                                        <button class="btn btn-secondary" style="flex: 1; font-size: 0.8rem;" onclick="exportFide(currentTournamentId)">
+                                            <i class="fa-solid fa-file-contract"></i> FIDE .TRF
+                                        </button>
+                                        <button class="btn btn-secondary" style="flex: 1; font-size: 0.8rem; background: #16a34a; color: white;" onclick="exportTournamentPDF()">
+                                            <i class="fa-solid fa-file-pdf"></i> Planillas
+                                        </button>
+                                    </div>
+                                </div>
                             </div>
-                            <div class="card" style="padding: 20px; border: 1px solid var(--accent-light);">
-                                <h4 style="margin-top:0; color: #16a34a;"><i class="fa-solid fa-print"></i> Planillas Oficiales</h4>
-                                <p style="font-size:0.85rem; color:var(--text-muted);">Genera un PDF con planillas de anotación para todas las mesas de la ronda actual.</p>
-                                <button class="btn btn-secondary" style="background:#16a34a; color:white; width: 100%;" onclick="exportAnalysisPDF()">
-                                    <i class="fa-solid fa-file-pdf"></i> Imprimir Planillas (PDF)
-                                </button>
-                            </div>
-                            <div class="card" style="padding: 20px; border: 1px solid var(--accent-light);">
-                                <h4 style="margin-top:0; color: #7c3aed;"><i class="fa-solid fa-user-shield"></i> Gestión de Árbitro</h4>
-                                <p style="font-size:0.85rem; color:var(--text-muted);">Acciones de supervisión y corrección de emparejamientos y resultados.</p>
-                                <div style="display: flex; gap: 10px;">
-                                    <button class="btn btn-secondary" style="flex: 1;" onclick="showView('tab-rounds')">Rondas</button>
-                                    <button class="btn btn-secondary" style="flex: 1;" onclick="openModal('edit-tournament-modal')">Ajustes</button>
+
+                            <!-- Bottom Row: Tournament Control -->
+                            <div class="card" style="padding: 1.5rem; border: 1px solid var(--accent-light); background: var(--surface-card);">
+                                <h4 style="margin-top: 0; margin-bottom: 1rem; display: flex; align-items: center; gap: 10px;">
+                                    <i class="fa-solid fa-user-shield" style="color: #7c3aed;"></i> Panel de Control de Arbitraje
+                                </h4>
+                                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem;">
+                                    <div style="padding: 1rem; background: var(--surface-color); border-radius: 8px; border: 1px solid var(--accent-light);">
+                                        <small style="text-transform: uppercase; font-weight: 700; color: var(--text-muted); display: block; margin-bottom: 5px;">Configuración</small>
+                                        <p style="font-size: 0.8rem; margin-bottom: 10px;">Modificar sistema de juego o detalles básicos.</p>
+                                        <button class="btn btn-secondary" style="width: 100%; font-size: 0.85rem;" onclick="openModal('edit-tournament-modal')">Editar Torneo</button>
+                                    </div>
+                                    <div style="padding: 1rem; background: var(--surface-color); border-radius: 8px; border: 1px solid var(--accent-light);">
+                                        <small style="text-transform: uppercase; font-weight: 700; color: var(--text-muted); display: block; margin-bottom: 5px;">Emparejamientos</small>
+                                        <p style="font-size: 0.8rem; margin-bottom: 10px;">Forzar regeneración de rondas o corregir errores.</p>
+                                        <button class="btn btn-secondary" style="width: 100%; font-size: 0.85rem;" onclick="startTournament(currentTournamentId)">Forzar Ronda</button>
+                                    </div>
+                                    <div style="padding: 1rem; background: rgba(225, 29, 72, 0.05); border-radius: 8px; border: 1px solid rgba(225, 29, 72, 0.2);">
+                                        <small style="text-transform: uppercase; font-weight: 700; color: #e11d48; display: block; margin-bottom: 5px;">Zona de Peligro</small>
+                                        <p style="font-size: 0.8rem; margin-bottom: 10px;">Eliminar el torneo y todos sus datos históricos.</p>
+                                        <button class="btn" style="width: 100%; font-size: 0.85rem; background: #e11d48; color: white;" onclick="deleteTournament(currentTournamentId)">Borrar Torneo</button>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -655,8 +782,8 @@
                     <p>Carga partidas en formato PGN y utiliza el motor más potente del mundo para analizar errores.</p>
                 </header>
 
-                <div class="card mt-4" style="padding: 25px; background: var(--surface-card); border: 1px solid var(--accent-light);">
-                    <div class="analysis-grid" style="gap: 30px;">
+                <div class="card mt-4" style="padding: 25px; width: 100%; max-width: 1200px; margin: 20px auto; background: var(--surface-card); border: 1px solid var(--accent-light); box-shadow: var(--shadow-ambient);">
+                    <div class="analysis-grid" style="display: flex; flex-direction: column; gap: 25px;">
                         <div>
                             <div id="analysis-board" style="width: 100%; max-width: 480px; margin: 0 auto; border: 5px solid var(--surface-color); border-radius: 8px; box-shadow: 0 10px 30px rgba(0,0,0,0.1);"></div>
                             <div style="display: flex; gap: 10px; justify-content: center; margin-top: 20px;">
@@ -682,20 +809,29 @@
                         </div>
                         
                         <div style="display: flex; flex-direction: column; gap: 20px;">
-                            <div class="form-group">
-                                <label style="font-weight:700; margin-bottom:8px; display:block;">Importar Partida (Formato PGN)</label>
-                                <textarea id="pgn-input" class="form-control" rows="8" 
-                                    placeholder="[Event &quot;Torneo Digital&quot;]\n1. e4 e5 2. Nf3 Nc6..." 
-                                    style="font-family:'Courier New', Courier, monospace; font-size:0.85rem; background: var(--surface-color); border-color: var(--accent-light);"></textarea>
-                                <button class="btn btn-secondary mt-2" style="width: 100%; display:flex; align-items:center; justify-content:center; gap:8px;" onclick="loadPGN()">
-                                    <i class="fa-solid fa-file-import"></i> Cargar Partida
+                            <div class="form-group" style="margin-bottom: 15px;">
+                                <label style="font-weight:700; margin-bottom:8px; display:block; font-size: 0.85rem;">Importar Partida (PGN)</label>
+                                <textarea id="pgn-input" class="form-control" rows="4" 
+                                    placeholder="1. e4 e5 2. Nf3..." 
+                                    style="font-family:monospace; font-size:0.8rem; background: var(--surface-color); border-color: var(--accent-light);"></textarea>
+                                <button class="btn btn-secondary mt-2" style="width: 100%; font-size: 0.85rem; padding: 8px;" onclick="loadPGN()">
+                                    <i class="fa-solid fa-file-import"></i> Cargar PGN
                                 </button>
                             </div>
 
                             <!-- OPENING EXPLORER CARD -->
                             <div id="opening-explorer" style="padding: 15px; background: var(--surface-color); border-radius: 12px; border: 1px solid var(--accent-light); margin-top: 5px;">
                                 <div style="font-size: 0.75rem; text-transform: uppercase; font-weight: 700; color: var(--text-muted); margin-bottom: 4px;">Apertura Detectada</div>
-                                <div id="opening-name" style="font-size: 1.1rem; color: var(--accent-color); font-weight: 800; margin-bottom: 10px;">Buscando apertura...</div>
+                                <div id="opening-name" style="font-size: 1.1rem; color: var(--accent-color); font-weight: 800; margin-bottom: 5px;">Buscando apertura...</div>
+                                <div id="theory-container" style="margin-top: 5px; display: none; background: rgba(139, 90, 43, 0.03); padding: 5px; border-radius: 6px; border: 1px solid rgba(139, 90, 43, 0.1); margin-bottom: 10px;">
+                                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2px;">
+                                        <span style="font-size: 0.6rem; font-weight: 800; color: var(--text-muted); letter-spacing: 0.5px;">TEORÍA</span>
+                                        <span id="theory-percent" style="font-size: 0.7rem; font-weight: 800; color: var(--accent-color);">0%</span>
+                                    </div>
+                                    <div style="height: 4px; background: rgba(0,0,0,0.05); border-radius: 2px; overflow: hidden;">
+                                        <div id="theory-bar" style="width: 0%; height: 100%; background: var(--accent-color); transition: width 0.6s;"></div>
+                                    </div>
+                                </div>
                                 <div id="opening-candidates" style="display: flex; flex-direction: column; gap: 5px;">
                                     <!-- Candidate moves will appear here -->
                                 </div>
@@ -715,7 +851,7 @@
                                 </div>
                                 <div style="background: var(--surface-card); border: 1px solid var(--accent-light); border-radius: 8px; padding: 10px;">
                                     <div style="font-size: 0.75rem; text-transform: uppercase; font-weight: 700; color: var(--text-muted); margin-bottom: 8px; border-bottom: 1px solid var(--accent-light); padding-bottom: 4px;">Historial de Movimientos</div>
-                                    <div id="analysis-move-list" style="display: grid; grid-template-columns: 30px 1fr 1fr; gap: 5px; max-height: 200px; overflow-y: auto; font-family: monospace; font-size: 0.9rem; align-items: center; color: var(--text-main);">
+                                    <div id="analysis-move-list" style="display: grid; grid-template-columns: 40px 1fr 1fr; gap: 4px; max-height: 180px; overflow-y: auto; font-family: 'Roboto Mono', monospace; font-size: 0.8rem; background: rgba(0,0,0,0.02); padding: 8px; border-radius: 8px; color: var(--text-main);">
                                         <!-- Moves will appear here -->
                                     </div>
                                 </div>
@@ -725,9 +861,13 @@
                                         <div style="text-align: center; margin-bottom: 15px;">
                                             <div style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; font-weight: 700;">Precisión General</div>
                                             <div id="accuracy-percent" style="font-size: 2.8rem; font-weight: 900; color: #fbbf24; line-height: 1.1;">0%</div>
+                                            <div id="elo-level-label" style="font-size: 0.8rem; color: rgba(255,255,255,0.5); margin-top: 4px;"></div>
+                                            <div style="display:flex; justify-content:center; gap:20px; margin-top:10px; font-size:0.75rem; color:rgba(255,255,255,0.5);">
+                                                <div>ACPL: <strong id="stat-acpl" style="color:#fbbf24;">---</strong></div>
+                                            </div>
                                         </div>
 
-                                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 20px;">
+                                        <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 12px; margin-bottom: 20px;">
                                             <div style="background: rgba(255,255,255,0.05); padding: 10px; border-radius: 8px; text-align: center;">
                                                 <img src="img/brilliant.svg" style="height:18px; margin-bottom: 4px;">
                                                 <div style="font-size: 0.7rem; color: var(--text-muted);">Brillantes</div>
@@ -737,6 +877,21 @@
                                                 <img src="img/best.svg" style="height:18px; margin-bottom: 4px;">
                                                 <div style="font-size: 0.7rem; color: var(--text-muted);">Mejores</div>
                                                 <div id="stat-best" style="font-weight: 800; font-size: 1.1rem; color: #00d4ff;">0</div>
+                                            </div>
+                                            <div style="background: rgba(255,255,255,0.05); padding: 10px; border-radius: 8px; text-align: center;">
+                                                <img src="img/excellent.svg" style="height:18px; margin-bottom: 4px;">
+                                                <div style="font-size: 0.7rem; color: var(--text-muted);">Excelentes</div>
+                                                <div id="stat-excellent" style="font-weight: 800; font-size: 1.1rem; color: #22c55e;">0</div>
+                                            </div>
+                                            <div style="background: rgba(255,255,255,0.05); padding: 10px; border-radius: 8px; text-align: center;">
+                                                <img src="img/good.svg" style="height:18px; margin-bottom: 4px;">
+                                                <div style="font-size: 0.7rem; color: var(--text-muted);">Buenas</div>
+                                                <div id="stat-good" style="font-weight: 800; font-size: 1.1rem; color: #3b82f6;">0</div>
+                                            </div>
+                                            <div style="background: rgba(255,255,255,0.05); padding: 10px; border-radius: 8px; text-align: center;">
+                                                <img src="img/inaccuracy.svg" style="height:18px; margin-bottom: 4px;">
+                                                <div style="font-size: 0.7rem; color: var(--text-muted);">Imprecisiones</div>
+                                                <div id="stat-inaccuracy" style="font-weight: 800; font-size: 1.1rem; color: #facc15;">0</div>
                                             </div>
                                             <div style="background: rgba(255,255,255,0.05); padding: 10px; border-radius: 8px; text-align: center;">
                                                 <img src="img/mistake.svg" style="height:18px; margin-bottom: 4px;">
@@ -767,7 +922,7 @@
 
                                         <div style="margin-top: 20px; text-align: center; padding: 15px; background: rgba(251, 191, 36, 0.1); border-radius: 8px; border: 1px solid rgba(251, 191, 36, 0.2);">
                                             <div style="font-size: 0.75rem; color: #fbbf24; font-weight: 700; text-transform: uppercase;">Nivel Estimado</div>
-                                            <div id="performance-elo" style="font-size: 1.5rem; font-weight: 900; color: #fbbf24;">1200 ELO</div>
+                                            <div id="performance-elo-main" style="font-size: 1.5rem; font-weight: 900; color: #fbbf24;">1200 ELO</div>
                                         </div>
                                     </div>
 
@@ -783,7 +938,7 @@
 
                                     <div style="margin-top: 15px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 10px; text-align: center;">
                                         <div style="font-size: 0.75rem; opacity: 0.8; margin-bottom: 4px;">DESEMPEÑO ESTIMADO</div>
-                                        <div id="performance-elo" style="font-size: 1.2rem; font-weight: 800; color: #fbbf24;">1200 ELO</div>
+                                        <div id="performance-elo-footer" style="font-size: 1.2rem; font-weight: 800; color: #fbbf24;">1200 ELO</div>
                                     </div>
                                 </div>
                             </div>
@@ -942,8 +1097,13 @@
                     </select>
                 </div>
                 <div class="form-group" id="group-t-rondas" style="display: none;">
-                    <label>Número de Rondas (Solo Suizo)</label>
+                    <label>Número de Rondas</label>
                     <input type="number" class="form-control" id="form-t-rondas" min="1" max="20" value="5">
+                </div>
+                <div class="form-group" id="group-t-tableros" style="display: none;">
+                    <label>Jugadores por Equipo (Tableros)</label>
+                    <input type="number" class="form-control" id="form-t-tableros" min="1" max="10" value="4">
+                    <small style="color: gray;">Define cuántas partidas simultáneas juegan los equipos.</small>
                 </div>
                 <button type="submit" class="btn btn-primary btn-large"
                     style="width: 100%; justify-content: center;">Confirmar Creación</button>
@@ -959,9 +1119,9 @@
             </div>
             <div class="tabs" id="add-player-tabs" style="margin-bottom: 1rem; display: none;">
                 <button type="button" class="tab-btn active" id="tab-btn-existente"
-                    onclick="togglePlayerTab('existente')">Existente</button>
-                <button type="button" class="tab-btn" id="tab-btn-nuevo"
-                    onclick="togglePlayerTab('nuevo')">Manual</button>
+                    onclick="togglePlayerTab('existente')">Jugadores</button>
+                <button type="button" class="tab-btn" id="tab-btn-equipos" style="display:none;"
+                    onclick="togglePlayerTab('equipos')">Equipos</button>
             </div>
             <form id="form-add-player">
                 <input type="hidden" id="add-player-mode" value="existente">
@@ -973,26 +1133,20 @@
                         </select>
                     </div>
                 </div>
-                <div id="tab-nuevo-content" style="display:none;">
+                <div id="tab-equipos-content" style="display:none;">
                     <div class="form-group">
-                        <label>Nombre de Usuario</label>
-                        <input type="text" class="form-control" id="form-p-name" placeholder="Ej: Hikaru Nakamura">
+                        <label>Seleccionar Equipo a Inscribir</label>
+                        <select class="form-control" id="form-team-select">
+                            <option value="">-- Seleccionar Equipo --</option>
+                        </select>
+                        <p style="font-size:0.8rem; color:gray; margin-top:5px;">Se inscribirán todos los jugadores pertenecientes a este equipo.</p>
                     </div>
-                    <div class="form-group">
-                        <label>Correo Electrónico (Opcional)</label>
-                        <input type="email" class="form-control" id="form-p-email"
-                            placeholder="Dejar en blanco para generar">
+                    <div style="text-align:center; margin:10px 0;">
+                        <span>O también puedes</span><br>
+                        <button type="button" class="btn btn-secondary" onclick="closeModal('add-player-modal'); openModal('create-team-modal');" style="margin-top:5px;">
+                            <i class="fa-solid fa-users-plus"></i> Crear Nuevo Equipo
+                        </button>
                     </div>
-                    <div class="form-group">
-                        <label>ELO FIDE</label>
-                        <input type="number" class="form-control" id="form-p-elo" placeholder="Ej: 1200">
-                    </div>
-                    <div class="form-group">
-                        <label>Nombre del Equipo (Opcional)</label>
-                        <input type="text" class="form-control" id="form-p-team" placeholder="Ej: Club de Ajedrez Central">
-                    </div>
-                    <div class="g-recaptcha" data-sitekey="6Le-KccsAAAAAM7dNenOory_rC3Jv09Vc0jg5NXu"
-                        style="margin-bottom:1rem; display:flex; justify-content:center;"></div>
                 </div>
                 <button type="submit" class="btn btn-primary" style="width: 100%; justify-content: center;">Añadir al
                     Torneo</button>
@@ -1192,6 +1346,45 @@
                 </div>
                 <button type="submit" class="btn btn-primary w-100">Otorgar Logro</button>
             </form>
+        </div>
+    </div>
+
+    <!-- CREATE TEAM MODAL -->
+    <div id="create-team-modal" class="modal-overlay">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Crear / Unirse a Equipo</h3>
+                <button class="close-btn" onclick="closeModal('create-team-modal')">&times;</button>
+            </div>
+            <form id="form-create-team">
+                <div class="form-group">
+                    <label>Elegir Equipo Existente o Crear Nuevo</label>
+                    <div style="display:flex; gap:10px; margin-bottom:5px;">
+                        <select id="select-existing-team" class="form-control" style="flex:1;">
+                            <option value="">-- Nuevo Equipo --</option>
+                        </select>
+                        <button type="button" class="btn btn-secondary" onclick="refreshTeamPlayerList()" title="Actualizar lista"><i class="fa-solid fa-rotate"></i></button>
+                    </div>
+                    <input type="text" id="form-team-name" class="form-control" placeholder="Nombre del nuevo equipo">
+                </div>
+                <div class="form-group">
+                    <label>Asignar Jugadores (Multi-selección)</label>
+                    <div id="team-player-checkboxes" style="max-height: 200px; overflow-y: auto; border: 1px solid var(--accent-light); padding: 10px; border-radius: 8px; background: var(--surface-color);">
+                        <!-- Populated via JS -->
+                        <div style="color: var(--text-muted); font-size: 0.85rem; text-align: center;">Cargando jugadores...</div>
+                    </div>
+                    <small class="text-muted">Los jugadores seleccionados serán transferidos a este equipo.</small>
+                </div>
+                <button type="submit" class="btn btn-primary w-100">Crear Equipo</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- GENERIC MODAL -->
+    <div id="generic-modal" class="modal-overlay">
+        <div class="modal-content" style="max-width: 600px; position: relative;">
+            <button class="btn" onclick="closeModal('generic-modal')" style="position: absolute; top: 15px; right: 20px; background: none; border: none; font-size: 1.5rem; cursor: pointer; color: var(--text-muted);">&times;</button>
+            <div id="generic-modal-content"></div>
         </div>
     </div>
 

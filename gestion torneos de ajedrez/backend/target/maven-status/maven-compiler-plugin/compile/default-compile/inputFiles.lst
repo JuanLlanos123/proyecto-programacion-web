@@ -13,6 +13,8 @@ C:\Users\FABIAN FLOREZ\Downloads\proyecto programacion web\gestion torneos de aj
 C:\Users\FABIAN FLOREZ\Downloads\proyecto programacion web\gestion torneos de ajedrez\backend\src\main\java\com\ajedrez\models\Inscripcion.java
 C:\Users\FABIAN FLOREZ\Downloads\proyecto programacion web\gestion torneos de ajedrez\backend\src\main\java\com\ajedrez\security\JwtUtil.java
 C:\Users\FABIAN FLOREZ\Downloads\proyecto programacion web\gestion torneos de ajedrez\backend\src\main\java\com\ajedrez\models\EloHistory.java
+C:\Users\FABIAN FLOREZ\Downloads\proyecto programacion web\gestion torneos de ajedrez\backend\src\main\java\com\ajedrez\controllers\EquipoController.java
+C:\Users\FABIAN FLOREZ\Downloads\proyecto programacion web\gestion torneos de ajedrez\backend\src\main\java\com\ajedrez\models\Equipo.java
 C:\Users\FABIAN FLOREZ\Downloads\proyecto programacion web\gestion torneos de ajedrez\backend\src\main\java\com\ajedrez\models\Usuario.java
 C:\Users\FABIAN FLOREZ\Downloads\proyecto programacion web\gestion torneos de ajedrez\backend\src\main\java\com\ajedrez\controllers\PartidaController.java
 C:\Users\FABIAN FLOREZ\Downloads\proyecto programacion web\gestion torneos de ajedrez\backend\src\main\java\com\ajedrez\models\Achievement.java
@@ -23,4 +25,5 @@ C:\Users\FABIAN FLOREZ\Downloads\proyecto programacion web\gestion torneos de aj
 C:\Users\FABIAN FLOREZ\Downloads\proyecto programacion web\gestion torneos de ajedrez\backend\src\main\java\com\ajedrez\controllers\UsuarioController.java
 C:\Users\FABIAN FLOREZ\Downloads\proyecto programacion web\gestion torneos de ajedrez\backend\src\main\java\com\ajedrez\services\EmparejamientoService.java
 C:\Users\FABIAN FLOREZ\Downloads\proyecto programacion web\gestion torneos de ajedrez\backend\src\main\java\com\ajedrez\security\WebSocketConfig.java
+C:\Users\FABIAN FLOREZ\Downloads\proyecto programacion web\gestion torneos de ajedrez\backend\src\main\java\com\ajedrez\repositories\EquipoRepository.java
 C:\Users\FABIAN FLOREZ\Downloads\proyecto programacion web\gestion torneos de ajedrez\backend\src\main\java\com\ajedrez\repositories\InscripcionRepository.java

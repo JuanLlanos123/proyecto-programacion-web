@@ -33,6 +33,10 @@ public class Usuario {
     @Column(length = 20)
     private String role = "PLAYER"; // ADMIN o PLAYER
 
+    @ManyToOne
+    @JoinColumn(name = "equipo_id")
+    private Equipo equipo;
+
     // Constructor, Getters y Setters
     public Usuario() {}
 
@@ -52,4 +56,11 @@ public class Usuario {
     public void setFechaRegistro(Date fechaRegistro) { this.fechaRegistro = fechaRegistro; }
     public String getRole() { return role; }
     public void setRole(String role) { this.role = role; }
+    public Equipo getEquipo() { return equipo; }
+    public void setEquipo(Equipo equipo) { this.equipo = equipo; }
+
+    // Método de conveniencia para no romper el frontend inmediatamente
+    public String getNombreEquipo() { 
+        return equipo != null ? equipo.getNombre() : null; 
+    }
 }
