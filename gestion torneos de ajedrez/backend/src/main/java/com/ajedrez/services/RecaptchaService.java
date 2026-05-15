@@ -14,8 +14,8 @@ public class RecaptchaService {
     public boolean verify(String token) {
         if (token == null || token.isEmpty()) return false;
         
-        // Bypass para pruebas locales si se usa el token de test
-        if ("test-token".equals(token)) return true;
+        // Bypass para pruebas locales y registros manuales de administrador
+        if ("test-token".equals(token) || "admin-manual-bypass".equals(token)) return true;
 
         RestTemplate restTemplate = new RestTemplate();
         String url = GOOGLE_RECAPTCHA_VERIFY_URL + "?secret=" + SECRET_KEY + "&response=" + token;

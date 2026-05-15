@@ -324,16 +324,12 @@ h1, h2, h3, h4 { font-family: var(--font-heading); color: var(--primary-color); 
     background-color: var(--surface-color);
     min-width: 0;
 }
-@keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 .view { 
     display: none; 
     animation: fadeIn 0.5s cubic-bezier(0.4, 0, 0.2, 1); 
-    padding: var(--spacing-md);
 }
-@keyframes fadeIn { 
-    from { opacity: 0; transform: translateY(15px); } 
-    to { opacity: 1; transform: translateY(0); } 
-}
+
 .view.active { display: block; }
 .view-header { 
     display: flex; 
@@ -350,7 +346,7 @@ h1, h2, h3, h4 { font-family: var(--font-heading); color: var(--primary-color); 
     border-radius: var(--radius-soft); 
     padding: var(--spacing-md); 
     box-shadow: var(--shadow-card); 
-    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); 
+    transition: box-shadow 0.3s ease, transform 0.3s ease; 
     max-width: 100%; 
     overflow-x: auto; 
     position: relative;

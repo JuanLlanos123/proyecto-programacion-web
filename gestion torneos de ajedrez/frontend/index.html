@@ -61,6 +61,21 @@
         .bracket-player:last-child { border-bottom: none; }
         .bracket-winner { font-weight: 800; color: var(--win-color); }
         .bracket-connector { position: absolute; right: -30px; top: 50%; width: 30px; height: 2px; background: var(--accent-light); }
+        
+        /* Fix Stockfish Centering */
+        #analysis-board {
+            margin: 0 auto !important;
+            display: block;
+        }
+        .analysis-grid {
+            display: grid !important;
+            grid-template-columns: 1fr 1fr;
+            gap: 25px;
+            align-items: start;
+        }
+        @media (max-width: 992px) {
+            .analysis-grid { grid-template-columns: 1fr; }
+        }
     </style>
 </head>
 
@@ -618,7 +633,7 @@
                     <i class="fa-solid fa-magnifying-glass" style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--accent-color);"></i>
                     <input type="text" id="search-users" class="form-control" placeholder="Buscar administradores..." style="padding-left: 35px;">
                 </div>
-                <div class="card mt-3">
+                <div class="card mt-3" style="width: 100%; max-width: none;">
                     <table class="data-table" id="global-users-table">
                         <thead>
                             <tr>
@@ -648,7 +663,7 @@
                     <i class="fa-solid fa-magnifying-glass" style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--accent-color);"></i>
                     <input type="text" id="search-players" class="form-control" placeholder="Buscar jugadores..." style="padding-left: 35px;">
                 </div>
-                <div class="card mt-3">
+                <div class="card mt-3" style="width: 100%; max-width: none;">
                     <table class="data-table" id="global-players-table">
                         <thead>
                             <tr>
@@ -804,7 +819,7 @@
                 </header>
 
                 <div class="card mt-4" style="padding: 25px; width: 100%; max-width: 1200px; margin: 20px auto; background: var(--surface-card); border: 1px solid var(--accent-light); box-shadow: var(--shadow-ambient);">
-                    <div class="analysis-grid" style="display: flex; flex-direction: column; gap: 25px;">
+                    <div class="analysis-grid">
                         <div>
                             <div id="analysis-board" style="width: 100%; max-width: 480px; margin: 0 auto; border: 5px solid var(--surface-color); border-radius: 8px; box-shadow: 0 10px 30px rgba(0,0,0,0.1);"></div>
                             <div style="display: flex; gap: 10px; justify-content: center; margin-top: 20px;">
@@ -1138,22 +1153,47 @@
                 <h2 id="add-player-modal-title">Añadir Jugador</h2>
                 <button class="close-btn" onclick="closeModal('add-player-modal')">&times;</button>
             </div>
-            <div class="tabs" id="add-player-tabs" style="margin-bottom: 1rem; display: none;">
+            <div class="tabs" id="add-player-tabs" style="margin-bottom: 1rem; display: flex;">
                 <button type="button" class="tab-btn active" id="tab-btn-existente"
-                    onclick="togglePlayerTab('existente')">Jugadores</button>
+                    onclick="togglePlayerTab('existente')">Lista Existente</button>
+                <button type="button" class="tab-btn" id="tab-btn-nuevo"
+                    onclick="togglePlayerTab('nuevo')">Registro Manual</button>
                 <button type="button" class="tab-btn" id="tab-btn-equipos" style="display:none;"
                     onclick="togglePlayerTab('equipos')">Equipos</button>
             </div>
             <form id="form-add-player">
                 <input type="hidden" id="add-player-mode" value="existente">
+
+                <!-- Tab: Elegir jugador existente -->
                 <div id="tab-existente-content">
                     <div class="form-group">
-                        <label>Seleccionar Jugador</label>
+                        <label>Seleccionar Jugador Registrado</label>
                         <select class="form-control" id="form-p-select">
                             <option value="">Cargando jugadores...</option>
                         </select>
                     </div>
                 </div>
+
+                <!-- Tab: Inscripción manual (jugador sin cuenta) -->
+                <div id="tab-nuevo-content" style="display:none;">
+                    <div class="form-group">
+                        <label>Nombre del Jugador <span style="color:#dc2626">*</span></label>
+                        <input type="text" class="form-control" id="form-p-name" placeholder="Ej: Garry Kasparov">
+                    </div>
+                    <div class="form-group">
+                        <label>Email (opcional)</label>
+                        <input type="email" class="form-control" id="form-p-email" placeholder="jugador@email.com">
+                    </div>
+                    <div class="form-group">
+                        <label>ELO Inicial</label>
+                        <input type="number" class="form-control" id="form-p-elo" placeholder="1200" min="0" max="4000" value="1200">
+                    </div>
+                    <p style="font-size:0.8rem; color:var(--text-muted); background:var(--surface-color); padding:8px 12px; border-radius:8px; border-left: 3px solid var(--accent-color);">
+                        <i class="fa-solid fa-circle-info"></i> Se creará una cuenta provisional para este jugador. El equipo se asigna en la gestión de equipos.
+                    </p>
+                </div>
+
+                <!-- Tab: Inscribir equipo completo -->
                 <div id="tab-equipos-content" style="display:none;">
                     <div class="form-group">
                         <label>Seleccionar Equipo a Inscribir</label>
@@ -1169,8 +1209,10 @@
                         </button>
                     </div>
                 </div>
-                <button type="submit" class="btn btn-primary" style="width: 100%; justify-content: center;">Añadir al
-                    Torneo</button>
+
+                <button type="submit" class="btn btn-primary" style="width: 100%; justify-content: center; margin-top: 0.5rem;">
+                    <i class="fa-solid fa-user-plus"></i> Añadir al Torneo
+                </button>
             </form>
         </div>
     </div>

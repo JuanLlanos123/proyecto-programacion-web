@@ -421,6 +421,10 @@ window.showView = function(viewId) {
     target.classList.add('active');
     currentView = viewId; // <- Track current view
 
+    // Scroll main content to top
+    const mainContent = document.querySelector('.main-content');
+    if (mainContent) mainContent.scrollTop = 0;
+
     // Trigger renders for specific views
     if (viewId === 'dashboard-view') {
         console.log('showView rendering Dashboard');
@@ -507,6 +511,7 @@ async function refreshTeamPlayerList() {
 window.closeModal = function(modalId) { 
     const modal = document.getElementById(modalId);
     if (modal) modal.classList.remove('active'); 
+    document.body.style.overflow = ''; // Restore scroll
 };
 
 window.toggleSidebar = function() {
@@ -863,10 +868,10 @@ function initForms() {
                 if (res && res.token) {
                     localStorage.setItem('jwt_token', res.token);
                     localStorage.setItem('currentUser', JSON.stringify(res.usuario));
-                    if (typeof grecaptcha !== 'undefined') try { grecaptcha.reset(0); } catch(e){}
+                    if (typeof grecaptcha !== 'undefined' && recaptchaWidgets.login !== null) try { grecaptcha.reset(recaptchaWidgets.login); } catch(e){}
                     checkAuthStatus(); connectWebSocket(); renderDashboard();
                 } else {
-                    if (typeof grecaptcha !== 'undefined') try { grecaptcha.reset(0); } catch(e){}
+                    if (typeof grecaptcha !== 'undefined' && recaptchaWidgets.login !== null) try { grecaptcha.reset(recaptchaWidgets.login); } catch(e){}
                     errorDiv.textContent = 'Usuario o contraseña incorrectos.'; 
                     errorDiv.style.display = 'block';
                 }
@@ -968,15 +973,14 @@ function initForms() {
                     data.nombre = document.getElementById('form-p-name').value;
                     data.email = document.getElementById('form-p-email').value;
                     data.elo = document.getElementById('form-p-elo').value;
-                    data.nombreEquipo = document.getElementById('form-p-team')?.value || '';
                     
-                    // reCAPTCHA removed from formAddPlayer as it's not in HTML
-                    let recaptchaToken = "bypass"; 
-                    data.recaptchaToken = recaptchaToken;
+                    // Removed team assignment from manual add as requested
+                    // The captcha is not required for admin manual registration
+                    data.recaptchaToken = "admin-manual-bypass"; 
                 }
                 
                 const res = await API.inscribirJugador(targetId, data);
-                if (typeof grecaptcha !== 'undefined' && mode !== 'existente') try { grecaptcha.reset(2); } catch(e){}
+                // if (typeof grecaptcha !== 'undefined' && mode !== 'existente') try { grecaptcha.reset(2); } catch(e){}
                 
                 if (res && (res.id || res.success)) { 
                     showNotification("¡Jugador inscrito con éxito!");
@@ -1039,7 +1043,7 @@ function initForms() {
                 }
                 
                 const res = await API.register(username, password, email, 'PLAYER', elo, recaptchaToken);
-                if (typeof grecaptcha !== 'undefined') try { grecaptcha.reset(3); } catch(e){}
+                if (typeof grecaptcha !== 'undefined' && recaptchaWidgets.player !== null) try { grecaptcha.reset(recaptchaWidgets.player); } catch(e){}
 
                 if (res) {
                     alert('¡Jugador "' + username + '" creado con éxito!');
@@ -1993,33 +1997,37 @@ window.openAddPlayerModal = async function(mode) {
     const modal = document.getElementById('add-player-modal');
     if (!modal) return;
     
-    const t = await API.getTorneo(currentTournamentId);
-    const tabs = document.getElementById('add-player-tabs');
+    const t = await API.getTorneo(window.currentTournamentId || currentTournamentId);
+    const isEquipos = t && t.sistemaJuego === 'EQUIPOS';
+
+    // Mostrar/ocultar pestaña de equipos segun tipo de torneo
     const teamTabBtn = document.getElementById('tab-btn-equipos');
-    
+    if (teamTabBtn) teamTabBtn.style.display = isEquipos ? 'inline-block' : 'none';
+
+    // Siempre mostrar el contenedor de tabs
+    const tabs = document.getElementById('add-player-tabs');
     if (tabs) tabs.style.display = 'flex';
-    if (teamTabBtn) teamTabBtn.style.display = (t.sistemaJuego === 'EQUIPOS') ? 'inline-block' : 'none';
 
-    document.getElementById('add-player-mode').value = mode;
-    togglePlayerTab(mode);
-
-    // Hide other tabs if registering teams to avoid reCAPTCHA errors and confusion
-    const existBtn = document.getElementById('tab-btn-existente');
-    const nuovoBtn = document.getElementById('tab-btn-nuevo');
-    const teamBtn = document.getElementById('tab-btn-equipos');
-    
+    // Si mode = 'equipos' solo mostrar esa pestaña
     if (mode === 'equipos') {
-        if(existBtn) existBtn.style.display = 'none';
-        if(nuovoBtn) nuovoBtn.style.display = 'none';
-        if(teamBtn) teamBtn.style.display = 'inline-block';
+        const existBtn = document.getElementById('tab-btn-existente');
+        const nuovoBtn = document.getElementById('tab-btn-nuevo');
+        if (existBtn) existBtn.style.display = 'none';
+        if (nuovoBtn) nuovoBtn.style.display = 'none';
+        if (teamTabBtn) teamTabBtn.style.display = 'inline-block';
         document.getElementById('add-player-modal-title').textContent = "Inscribir Equipo";
     } else {
-        if(existBtn) existBtn.style.display = 'inline-block';
-        if(nuovoBtn) nuovoBtn.style.display = 'inline-block';
-        if(teamBtn) teamBtn.style.display = 'none';
+        const existBtn = document.getElementById('tab-btn-existente');
+        const nuovoBtn = document.getElementById('tab-btn-nuevo');
+        if (existBtn) existBtn.style.display = 'inline-block';
+        if (nuovoBtn) nuovoBtn.style.display = 'inline-block';
         document.getElementById('add-player-modal-title').textContent = "Inscribir Jugador";
     }
 
+    // Cambiar a la pestaña solicitada
+    togglePlayerTab(mode);
+
+    // Cargar datos para la pestaña seleccionada
     if (mode === 'existente') {
         const users = await API.getUsuarios();
         const playersOnly = users.filter(u => String(u.role || '').toUpperCase() !== 'ADMIN');
@@ -2032,7 +2040,9 @@ window.openAddPlayerModal = async function(mode) {
         if (select) select.innerHTML = '<option value="">-- Seleccionar Equipo --</option>' + 
             teams.map(t => `<option value="${t}">${t}</option>`).join('');
     }
+
     modal.classList.add('active');
+    document.body.style.overflow = 'hidden';
 };
 
 window.togglePlayerTab = function(tab) {
@@ -2630,12 +2640,19 @@ function updateAnalysisUI() {
             `;
             moveList.innerHTML += moveRow;
         }
-        moveList.scrollTop = moveList.scrollHeight;
+        // Scroll al final removido para evitar saltos bruscos
         
-        // Auto-scroll to highlighted move if not at bottom
+        // Auto-scroll to highlighted move in the side list
         const activeMove = moveList.querySelector(`[style*="${highlight}"]`);
         if (activeMove) {
-            activeMove.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+            // Use scrollTop adjustment instead of scrollIntoView to avoid window jumping
+            const containerHeight = moveList.clientHeight;
+            const itemOffset = activeMove.offsetTop;
+            const itemHeight = activeMove.clientHeight;
+            
+            if (itemOffset < moveList.scrollTop || itemOffset + itemHeight > moveList.scrollTop + containerHeight) {
+                moveList.scrollTop = itemOffset - (containerHeight / 2);
+            }
         }
     }
 
@@ -3342,12 +3359,29 @@ async function renderTeamsManagementView() {
                         </div>
                     </div>
                     
-                    <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; border-top: 1px solid var(--accent-light); padding-top:1.5rem;">
+                    <div style="margin: 1rem 0; border-top: 1px solid var(--accent-light); padding-top: 1rem;">
+                        <div style="font-size: 0.75rem; font-weight: 800; color: var(--accent-color); margin-bottom: 10px; text-transform: uppercase;">Miembros del Equipo</div>
+                        <div style="display: flex; flex-direction: column; gap: 8px; max-height: 200px; overflow-y: auto; padding-right: 5px;">
+                            ${team.members.map(m => `
+                                <div style="display: flex; justify-content: space-between; align-items: center; background: var(--surface-color); padding: 8px 12px; border-radius: 8px; border: 1px solid var(--accent-light);">
+                                    <div>
+                                        <div style="font-weight: 700; font-size: 0.85rem;">${m.username}</div>
+                                        <div style="font-size: 0.7rem; color: var(--text-muted);">ELO: ${m.eloRating}</div>
+                                    </div>
+                                    <button class="btn admin-only" style="padding: 4px 8px; background: rgba(220, 38, 38, 0.1); color: #dc2626; border: none; font-size: 0.75rem;" onclick="removePlayerFromTeam('${m.id}', '${team.name}')" title="Eliminar del equipo">
+                                        <i class="fa-solid fa-user-minus"></i>
+                                    </button>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                    
+                    <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; border-top: 1px solid var(--accent-light); padding-top:1rem;">
                         <button class="btn btn-secondary" style="font-size:0.85rem; padding: 10px;" onclick="viewTeamStats('${team.name}')">
                             <i class="fa-solid fa-chart-line"></i> Estadísticas
                         </button>
-                        <button class="btn btn-primary admin-only" style="font-size:0.85rem; padding: 10px;" onclick="openModal('create-team-modal')">
-                            <i class="fa-solid fa-gear"></i> Gestionar
+                        <button class="btn btn-primary admin-only" style="font-size:0.85rem; padding: 10px;" onclick="addPlayerToTeamPrompt('${team.name}')">
+                            <i class="fa-solid fa-user-plus"></i> Añadir
                         </button>
                     </div>
                 </div>`;
@@ -3369,23 +3403,67 @@ async function renderTeamsManagementView() {
 }
 
 window.addPlayerToTeamPrompt = async function(teamName) {
-    // We repurpose the create-team-modal
     const modal = document.getElementById('create-team-modal');
     const nameInput = document.getElementById('form-team-name');
+    const selectExisting = document.getElementById('select-existing-team');
+    
     if (modal && nameInput) {
-        nameInput.value = teamName;
-        // Disable name input if editing existing team
-        nameInput.readOnly = true;
+        // Prepare modal for adding to specific team
+        if (teamName) {
+            nameInput.value = teamName;
+            nameInput.readOnly = true;
+            if (selectExisting) {
+                selectExisting.value = teamName;
+                selectExisting.disabled = true;
+            }
+        } else {
+            nameInput.value = '';
+            nameInput.readOnly = false;
+            if (selectExisting) {
+                selectExisting.value = '';
+                selectExisting.disabled = false;
+            }
+        }
+        
+        await refreshTeamPlayerList();
         openModal('create-team-modal');
         
-        // When modal closes, reset readOnly
-        const closeBtn = modal.querySelector('.close-btn');
-        const oldOnclick = closeBtn.onclick;
-        closeBtn.onclick = () => {
-            nameInput.readOnly = false;
-            nameInput.value = '';
-            if(oldOnclick) oldOnclick();
+        // Cleanup function for when modal closes
+        const originalClose = window.closeModal;
+        window.closeModal = function(id) {
+            if (id === 'create-team-modal') {
+                nameInput.readOnly = false;
+                if (selectExisting) selectExisting.disabled = false;
+                window.closeModal = originalClose;
+            }
+            originalClose(id);
         };
+    }
+};
+
+window.removePlayerFromTeam = async function(userId, teamName) {
+    if (!confirm(`¿Estás seguro de que deseas eliminar a este jugador del equipo ${teamName}?`)) return;
+    
+    try {
+        // We need the team ID. Since we grouped by name, let's find the team ID from API
+        const teams = await API.getEquipos();
+        const team = teams.find(t => t.nombre === teamName);
+        
+        if (!team) {
+            showNotification("No se encontró el equipo en el sistema", "error");
+            return;
+        }
+
+        const success = await API.removerMiembroEquipo(team.id, userId);
+        if (success) {
+            showNotification("Jugador eliminado del equipo con éxito");
+            renderTeamsManagementView();
+        } else {
+            showNotification("Error al eliminar al jugador del equipo", "error");
+        }
+    } catch (e) {
+        console.error("Error removePlayerFromTeam:", e);
+        showNotification("Error de conexión al servidor", "error");
     }
 };
 

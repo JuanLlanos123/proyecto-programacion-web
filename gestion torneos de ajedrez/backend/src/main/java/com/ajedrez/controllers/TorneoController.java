@@ -225,7 +225,9 @@ public class TorneoController {
         Inscripcion inscripcion = new Inscripcion();
         inscripcion.setTorneo(torneo);
         inscripcion.setUsuario(u);
-        if (body.containsKey("nombreEquipo")) {
+        
+        // El equipo ahora solo se asigna si viene explícitamente (se prefiere gestión posterior)
+        if (body.containsKey("nombreEquipo") && body.get("nombreEquipo") != null && !body.get("nombreEquipo").isEmpty()) {
             inscripcion.setNombreEquipo(body.get("nombreEquipo"));
         }
 
@@ -274,26 +276,65 @@ public class TorneoController {
             torneo.setFechaFin(new Date());
             Torneo saved = torneoRepository.save(torneo);
 
-            // Actualizar ELO de participantes
+            // Actualizar ELO de participantes usando la fórmula de Arpad Elo
             List<Inscripcion> inscripciones = inscripcionRepository.findByTorneoId(id);
+            List<Partida> partidas = partidaRepository.findByTorneoId(id);
+            
+            // 1. Guardar ratings iniciales para que el cálculo no se vea afectado por actualizaciones parciales
+            java.util.Map<Long, Integer> initialRatings = new java.util.HashMap<>();
+            for (Inscripcion ins : inscripciones) {
+                initialRatings.put(ins.getUsuario().getId(), ins.getUsuario().getEloRating());
+            }
+
+            // 2. Calcular el cambio de ELO (Delta) para cada jugador
             for (Inscripcion ins : inscripciones) {
                 Usuario u = ins.getUsuario();
-                int oldElo = u.getEloRating();
-                double pts = ins.getPuntosAcumulados();
-                int matches = ins.getPartidasJugadas();
+                int currentR = initialRatings.get(u.getId());
+                double totalActualScore = 0;
+                double totalExpectedScore = 0;
+                int matchesCount = 0;
 
-                if (matches > 0) {
-                    // Lógica simple: K=20, Puntos esperados = 0.5 por partida
-                    int delta = (int) ((pts - (matches * 0.5)) * 20);
-                    int newElo = oldElo + delta;
-                    if (newElo < 100)
-                        newElo = 100;
+                for (Partida p : partidas) {
+                    if ("P".equals(p.getResultado()) || "BYE".equals(p.getResultado())) continue;
+
+                    boolean isWhite = p.getBlancas() != null && p.getBlancas().getId().equals(u.getId());
+                    boolean isBlack = p.getNegras() != null && p.getNegras().getId().equals(u.getId());
+
+                    if (isWhite || isBlack) {
+                        matchesCount++;
+                        Usuario opponent = isWhite ? p.getNegras() : p.getBlancas();
+                        
+                        // Score actual
+                        double s = 0;
+                        if ("1-0".equals(p.getResultado())) s = isWhite ? 1.0 : 0.0;
+                        else if ("0-1".equals(p.getResultado())) s = isWhite ? 0.0 : 1.0;
+                        else if ("0.5-0.5".equals(p.getResultado())) s = 0.5;
+
+                        totalActualScore += s;
+
+                        // Score esperado: E = 1 / (1 + 10^((Rb - Ra)/400))
+                        if (opponent != null) {
+                            int opponentR = initialRatings.getOrDefault(opponent.getId(), opponent.getEloRating());
+                            double expected = 1.0 / (1.0 + Math.pow(10, (double)(opponentR - currentR) / 400.0));
+                            totalExpectedScore += expected;
+                        } else {
+                            // Si por algún motivo no hay oponente (no debería pasar si no es BYE)
+                            totalExpectedScore += 0.5;
+                        }
+                    }
+                }
+
+                if (matchesCount > 0) {
+                    // K-Factor = 20
+                    int delta = (int) Math.round(20.0 * (totalActualScore - totalExpectedScore));
+                    int newElo = currentR + delta;
+                    if (newElo < 100) newElo = 100;
 
                     u.setEloRating(newElo);
                     usuarioRepository.save(u);
 
                     // Guardar en historial
-                    eloHistoryRepository.save(new EloHistory(u, newElo, "Torneo Finalizado: " + torneo.getNombre()));
+                    eloHistoryRepository.save(new EloHistory(u, newElo, "Torneo Finalizado: " + torneo.getNombre() + " (Δ: " + (delta >= 0 ? "+" : "") + delta + ")"));
                 }
             }
 
