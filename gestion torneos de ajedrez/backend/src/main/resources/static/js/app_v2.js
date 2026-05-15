@@ -2482,9 +2482,16 @@ window.moveAnalysis = function(dir) {
         else playChessSound('move');
     }
 
-    analysisBoard.position(tempGame.fen());
+    // Freeze main-content scroll before board update to prevent page jump
+    const mainContent = document.querySelector('.main-content');
+    const savedScrollTop = mainContent ? mainContent.scrollTop : 0;
+    
+    analysisBoard.position(tempGame.fen(), false); // false = no animation on navigation
     analysisGame = tempGame;
     updateAnalysisUI();
+    
+    // Restore scroll position after DOM updates
+    if (mainContent) mainContent.scrollTop = savedScrollTop;
 };
 
 window.exportAnalysisPDF = function() {
@@ -2615,44 +2622,56 @@ function updateAnalysisUI() {
         pgnArea.value = analysisGame.pgn();
     }
     
-    // Render move history
+    // Render move history — build all HTML in one shot to avoid incremental reflows
     const moveList = document.getElementById('analysis-move-list');
     if (moveList) {
-        moveList.innerHTML = '';
+        const savedMoveScroll = moveList.scrollTop; // preserve inner scroll
         const isDark = document.body.classList.contains('dark-theme');
-        const highlight = isDark ? 'rgba(255, 255, 255, 0.15)' : '#fef3c7';
+        const highlight = isDark ? 'rgba(255,255,255,0.15)' : '#fef3c7';
+        
+        const parts = [];
+        let activeRowIndex = -1;
         
         for (let i = 0; i < currentHistory.length; i += 2) {
             const roundNum = Math.floor(i / 2) + 1;
-            const whiteMove = currentHistory[i];
+            const whiteMove = currentHistory[i] || '';
             const blackMove = currentHistory[i + 1] || '';
             
             const wEval = moveEvaluations[i];
             const bEval = moveEvaluations[i + 1];
             
-            const wIcon = wEval && wEval.icon ? `<img src="img/${wEval.icon}.svg" style="height:14px; vertical-align:middle; margin-left:4px;" title="${wEval.icon} (${wEval.diff > 0 ? '+' : ''}${wEval.diff.toFixed(2)})">` : '';
-            const bIcon = bEval && bEval.icon ? `<img src="img/${bEval.icon}.svg" style="height:14px; vertical-align:middle; margin-left:4px;" title="${bEval.icon} (${bEval.diff > 0 ? '+' : ''}${bEval.diff.toFixed(2)})">` : '';
+            const wIcon = wEval && wEval.icon
+                ? `<img src="img/${wEval.icon}.svg" style="height:14px;vertical-align:middle;margin-left:4px;" title="${wEval.icon} (${wEval.diff > 0 ? '+' : ''}${wEval.diff.toFixed(2)})">`
+                : '';
+            const bIcon = bEval && bEval.icon
+                ? `<img src="img/${bEval.icon}.svg" style="height:14px;vertical-align:middle;margin-left:4px;" title="${bEval.icon} (${bEval.diff > 0 ? '+' : ''}${bEval.diff.toFixed(2)})">`
+                : '';
             
-            const moveRow = `
-                <div style="color: var(--text-muted); font-weight: bold;">${roundNum}.</div>
-                <div style="padding: 2px 5px; background: ${i === currentMoveIndex ? highlight : 'transparent'}; border-radius: 4px; color: var(--text-main); cursor:pointer;" onclick="moveAnalysisAbsolute(${i})">${whiteMove}${wIcon}</div>
-                <div style="padding: 2px 5px; background: ${i + 1 === currentMoveIndex ? highlight : 'transparent'}; border-radius: 4px; color: var(--text-main); cursor:pointer;" onclick="moveAnalysisAbsolute(${i+1})">${blackMove}${bIcon}</div>
-            `;
-            moveList.innerHTML += moveRow;
+            const wActive = i === currentMoveIndex;
+            const bActive = i + 1 === currentMoveIndex;
+            if (wActive || bActive) activeRowIndex = parts.length + (wActive ? 1 : 2);
+            
+            parts.push(
+                `<div style="color:var(--text-muted);font-weight:bold;line-height:1.8;">${roundNum}.</div>`,
+                `<div data-mi="${i}" style="padding:2px 5px;background:${wActive ? highlight : 'transparent'};border-radius:4px;color:var(--text-main);cursor:pointer;" onclick="moveAnalysisAbsolute(${i})">${whiteMove}${wIcon}</div>`,
+                `<div data-mi="${i+1}" style="padding:2px 5px;background:${bActive ? highlight : 'transparent'};border-radius:4px;color:var(--text-main);cursor:pointer;" onclick="moveAnalysisAbsolute(${i+1})">${blackMove}${bIcon}</div>`
+            );
         }
-        // Scroll al final removido para evitar saltos bruscos
         
-        // Auto-scroll to highlighted move in the side list
-        const activeMove = moveList.querySelector(`[style*="${highlight}"]`);
-        if (activeMove) {
-            // Use scrollTop adjustment instead of scrollIntoView to avoid window jumping
-            const containerHeight = moveList.clientHeight;
-            const itemOffset = activeMove.offsetTop;
-            const itemHeight = activeMove.clientHeight;
-            
-            if (itemOffset < moveList.scrollTop || itemOffset + itemHeight > moveList.scrollTop + containerHeight) {
-                moveList.scrollTop = itemOffset - (containerHeight / 2);
+        // Single DOM write — no incremental innerHTML concatenation
+        moveList.innerHTML = parts.join('');
+        
+        // Scroll only the move-list box (not the page) to keep active move visible
+        const activeEl = moveList.querySelector(`[data-mi="${currentMoveIndex}"]`);
+        if (activeEl) {
+            const ch = moveList.clientHeight;
+            const top = activeEl.offsetTop;
+            const h = activeEl.clientHeight;
+            if (top < moveList.scrollTop || top + h > moveList.scrollTop + ch) {
+                moveList.scrollTop = top - ch / 2;
             }
+        } else {
+            moveList.scrollTop = savedMoveScroll;
         }
     }
 
@@ -2701,9 +2720,16 @@ window.moveAnalysisAbsolute = function(index) {
         else playChessSound('move');
     }
 
-    analysisBoard.position(tempGame.fen());
+    // Freeze main-content scroll before board re-render
+    const mainContent = document.querySelector('.main-content');
+    const savedScrollTop = mainContent ? mainContent.scrollTop : 0;
+
+    analysisBoard.position(tempGame.fen(), false); // false = instant, no slide animation
     analysisGame = tempGame;
     updateAnalysisUI();
+    
+    // Restore page scroll position immediately
+    if (mainContent) mainContent.scrollTop = savedScrollTop;
 };
 
 window.runFullAnalysis = async function() {

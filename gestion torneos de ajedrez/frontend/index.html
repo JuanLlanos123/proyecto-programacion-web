@@ -821,7 +821,7 @@
                 <div class="card mt-4" style="padding: 25px; width: 100%; max-width: 1200px; margin: 20px auto; background: var(--surface-card); border: 1px solid var(--accent-light); box-shadow: var(--shadow-ambient);">
                     <div class="analysis-grid">
                         <div>
-                            <div id="analysis-board" style="width: 100%; max-width: 480px; margin: 0 auto; border: 5px solid var(--surface-color); border-radius: 8px; box-shadow: 0 10px 30px rgba(0,0,0,0.1);"></div>
+                            <div id="analysis-board" style="width: 100%; max-width: 480px; margin: 0 auto; border: 5px solid var(--surface-color); border-radius: 8px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); contain: layout style;"></div>
                             <div style="display: flex; gap: 10px; justify-content: center; margin-top: 20px;">
                                 <button class="btn btn-secondary" onclick="moveAnalysis(-1)" title="Retroceder"><i class="fa-solid fa-chevron-left"></i></button>
                                 <button class="btn btn-secondary" onclick="moveAnalysis(1)" title="Avanzar"><i class="fa-solid fa-chevron-right"></i></button>
@@ -887,7 +887,7 @@
                                 </div>
                                 <div style="background: var(--surface-card); border: 1px solid var(--accent-light); border-radius: 8px; padding: 10px;">
                                     <div style="font-size: 0.75rem; text-transform: uppercase; font-weight: 700; color: var(--text-muted); margin-bottom: 8px; border-bottom: 1px solid var(--accent-light); padding-bottom: 4px;">Historial de Movimientos</div>
-                                    <div id="analysis-move-list" style="display: grid; grid-template-columns: 40px 1fr 1fr; gap: 4px; max-height: 180px; overflow-y: auto; font-family: 'Roboto Mono', monospace; font-size: 0.8rem; background: rgba(0,0,0,0.02); padding: 8px; border-radius: 8px; color: var(--text-main);">
+                                    <div id="analysis-move-list" style="display: grid; grid-template-columns: 40px 1fr 1fr; gap: 4px; max-height: 180px; overflow-y: auto; font-family: 'Roboto Mono', monospace; font-size: 0.8rem; background: rgba(0,0,0,0.02); padding: 8px; border-radius: 8px; color: var(--text-main); overscroll-behavior: contain; scroll-behavior: auto;">
                                         <!-- Moves will appear here -->
                                     </div>
                                 </div>

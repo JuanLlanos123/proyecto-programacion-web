@@ -323,6 +323,8 @@ h1, h2, h3, h4 { font-family: var(--font-heading); color: var(--primary-color); 
     padding: 2rem 3rem;
     background-color: var(--surface-color);
     min-width: 0;
+    overscroll-behavior: contain;
+    scroll-behavior: auto;
 }
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 .view { 

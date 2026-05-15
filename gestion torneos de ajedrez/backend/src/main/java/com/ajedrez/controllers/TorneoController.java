@@ -18,6 +18,7 @@ import com.ajedrez.services.RecaptchaService;
 import com.ajedrez.services.EmailService;
 import com.ajedrez.services.GamificationService;
 import com.ajedrez.services.FideExportService;
+import com.ajedrez.services.EloService;
 import com.ajedrez.models.EloHistory;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
@@ -70,6 +71,9 @@ public class TorneoController {
 
     @Autowired
     private FideExportService fideExportService;
+
+    @Autowired
+    private EloService eloService;
 
     /** Obtiene todos los torneos registrados */
     @GetMapping
@@ -325,8 +329,11 @@ public class TorneoController {
                 }
 
                 if (matchesCount > 0) {
-                    // K-Factor = 20
-                    int delta = (int) Math.round(20.0 * (totalActualScore - totalExpectedScore));
+                    // K-Factor dinámico (FIDE): 40 novato, 20 regular, 10 profesional (ELO≥2400)
+                    // Usamos matchesCount del torneo como historial mínimo disponible.
+                    // Para K basado en historial total, usa la sobrecarga con ID de usuario.
+                    int k = eloService.obtenerKFactor(currentR, matchesCount);
+                    int delta = (int) Math.round(k * (totalActualScore - totalExpectedScore));
                     int newElo = currentR + delta;
                     if (newElo < 100) newElo = 100;
 
